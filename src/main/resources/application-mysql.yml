@@ -1,0 +1,27 @@
+# Perfil para persistencia em MySQL.
+# Use com: --spring.profiles.active=mysql
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/freelas_atende?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DB_USERNAME:freelas}
+    password: ${DB_PASSWORD:freelas}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # DDL automatico DESLIGADO de proposito no MySQL (medido em 15/09/2026).
+      # O Hibernate nao compara enum do MySQL com o enum Java, entao reemitia
+      # ALTER TABLE ... MODIFY plataforma enum(...) em TODO boot; o
+      # DatabaseSchemaInitializer, logo depois, reconverte a mesma coluna para
+      # VARCHAR(40), formato que o app usa para aceitar marketplace novo sem DDL.
+      # Os dois ficavam em cabo de guerra reconstruindo tabelas de 700k linhas a
+      # cada deploy: dois deploys travaram 45min e 15min esperando lock de
+      # metadados, com a aplicacao fora do ar. Quem manda no schema aqui e o
+      # DatabaseSchemaInitializer, que roda ALTER com lock_wait_timeout de 10s
+      # e so quando o tipo esta realmente errado.
+      ddl-auto: ${DB_DDL_AUTO:none}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  h2:
+    console:
+      enabled: false

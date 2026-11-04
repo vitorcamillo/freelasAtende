@@ -1,0 +1,81 @@
+# ============================================================
+# TESTES FUNCIONAIS - Configuração offline e segura
+# ============================================================
+# Este arquivo é usado pelos testes em src/test/
+# Mantém scheduler pausado/desabilitado e cookies isolados em target/
+
+# IA - Usa variáveis do ambiente ou .env
+ia:
+  provider: ${IA_PROVIDER:openai}
+  api-key: ${IA_API_KEY:}
+  base-url: ${IA_BASE_URL:https://api.openai.com/v1}
+  model: ${IA_MODEL:gpt-4o-mini}
+  max-retries: ${IA_MAX_RETRIES:2}
+  timeout: ${IA_TIMEOUT:30}
+  fallback-when-missing-key: false
+  # Isola a memoria de aprendizado em target/ para nenhum teste gravar na
+  # memoria real (data/memoria-contexto.json). Testes que precisam de path
+  # proprio sobrescrevem via @SpringBootTest(properties=...) / DynamicPropertySource.
+  memoria-arquivo: target/test-memoria-contexto.json
+
+# 99Freelas
+freelas:
+  email: ${FREELAS_EMAIL:}
+  senha: ${FREELAS_PASSWORD:}
+  url-base: ${FREELAS_URL_BASE:https://www.99freelas.com.br}
+
+# Telegram
+telegram:
+  bot-token: ${TELEGRAM_BOT_TOKEN:}
+  chat-id: ${TELEGRAM_CHAT_ID:}
+  simulate: false
+
+# Sistema
+sistema:
+  modo-padrao: ENSINAMENTO
+  polling-intervalo: 99999
+  iniciar-pausado: true
+  categoria-filtro: web-mobile-e-software
+  min-conexoes-reserva: 0
+  min-media-cliente: 0.0
+  bloquear-cliente-sem-avaliacao: false
+
+real:
+  write:
+    enabled: false
+    simulate: false
+
+scheduling:
+  enabled: false
+
+auth:
+  cookies-arquivo: target/test-cookies.json
+
+# Spring - H2 em memória para testes. Um banco por contexto Spring (random.uuid): com o
+# mesmo testdb, o create-drop de um contexto novo recriava o schema por baixo de outro
+# contexto em cache e testes concorrentes colidiam na chave primaria (flaky).
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb-${random.uuid};DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        type:
+          json_format_mapper: org.hibernate.type.format.jackson.JacksonJsonFormatMapper
+        format_sql: false
+  h2:
+    console:
+      enabled: false
+
+# Logging mínimo em testes
+logging:
+  level:
+    com.freelasatende: INFO
+    org.springframework: WARN
+    org.hibernate: ERROR

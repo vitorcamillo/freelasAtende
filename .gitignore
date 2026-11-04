@@ -1,0 +1,51 @@
+# Build and test output
+target/
+*.class
+__pycache__/
+*.pyc
+*.patch
+
+# Local runtime state
+logs/
+.agent/
+*.pid
+*.log
+
+# Local secrets and sessions
+.env
+.env.*
+!.env.example
+.coolify-env.generated
+cookies_test.txt
+data/cookies.json
+data/cookies*.json*
+data/*cookies*.json*
+data/*cookies*.bak*
+data/*login*.bak*
+data/*otp*.txt
+data/mfa_code.txt
+data/*.db
+data/*.mv.db
+data/*.trace.db
+data/*.lock.db
+data/memoria-contexto.json
+.codex/
+auth.json
+**/auth.json
+
+# Browser/CDP captures and profiles can contain cookies, local storage and payloads.
+captures/
+profiles/
+
+# Generated experiment artifacts
+data/ml-lab/runs/
+
+# Local screenshots and scraped pages
+/*.png
+/projects.html
+/conversa-codex-*.txt
+/ler-conversa-guardada.txt
+
+# Local editor/user wiring
+.vscode/
+CLAUDE.md

@@ -1,0 +1,168 @@
+# IA Provider
+ia:
+  provider: ${IA_PROVIDER:openai}
+  api-key: ${ANTHROPIC_AUTH_TOKEN:${IA_API_KEY:${OPENAI_API_KEY:}}}
+  base-url: ${IA_BASE_URL:https://api.openai.com/v1}
+  model: ${IA_MODEL:openrouter/free}
+  max-retries: ${IA_MAX_RETRIES:3}
+  timeout: ${IA_TIMEOUT:60}
+  unavailable-cooldown-segundos: ${IA_UNAVAILABLE_COOLDOWN_SEGUNDOS:${IA_AUTH_ALERTA_COOLDOWN_SEGUNDOS:3600}}
+  fallback-when-missing-key: ${IA_FALLBACK_WHEN_MISSING_KEY:true}
+  fallback-models: ${IA_FALLBACK_MODELS:}
+  auth-alerta-cooldown-segundos: ${IA_AUTH_ALERTA_COOLDOWN_SEGUNDOS:3600}
+  codex-account-homes: ${IA_CODEX_ACCOUNT_HOMES:}
+  # Segunda camada de fallback com provedor proprio (URL/chave diferentes da
+  # cadeia principal acima). So entra em acao quando ia.model + todo
+  # ia.fallback-models falharem com erro retryable (429/5xx). Pensado para o
+  # OpenRouter (base-url=https://openrouter.ai/api/v1), mas serve para
+  # qualquer backend OpenAI-compatible.
+  secondary-base-url: ${IA_SECONDARY_BASE_URL:}
+  secondary-api-key: ${IA_SECONDARY_API_KEY:${OPENROUTER_API_KEY:}}
+  secondary-models: ${IA_SECONDARY_MODELS:}
+  # Terceira camada: mesma base-url/api-key da principal (OpenRouter), tentada
+  # so depois que principal e secundaria falharem com erro retryable.
+  tertiary-models: ${IA_TERTIARY_MODELS:}
+
+# 99Freelas
+freelas:
+  email: ${FREELAS_EMAIL:}
+  senha: ${FREELAS_PASSWORD:}
+  url-base: ${FREELAS_URL_BASE:}
+  user-agent: ${FREELAS_USER_AGENT:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0}
+  driverless:
+    enabled: ${FREELAS_DRIVERLESS_ENABLED:false}
+
+auth:
+  cookies-arquivo: ${FREELAS_COOKIES_PATH:data/cookies.json}
+
+# Workana
+workana:
+  url-base: ${WORKANA_URL_BASE:https://www.workana.com}
+  user-agent: ${WORKANA_USER_AGENT:${FREELAS_USER_AGENT:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0}}
+  cookies-arquivo: ${WORKANA_COOKIES_PATH:data/workana-cookies.json}
+  worker-slug: ${WORKANA_WORKER_SLUG:}
+  discovery-query: ${WORKANA_DISCOVERY_QUERY:category=it-programming&language=pt}
+  max-projetos: ${WORKANA_MAX_PROJETOS:20}
+
+# Upwork - cookies-based
+upwork:
+  url-base: ${UPWORK_URL_BASE:https://www.upwork.com}
+  user-agent: ${UPWORK_USER_AGENT:${FREELAS_USER_AGENT:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0}}
+  cookies-arquivo: ${UPWORK_COOKIES_PATH:data/upwork-cookies.json}
+  worker-slug: ${UPWORK_WORKER_SLUG:}
+  discovery-query: ${UPWORK_DISCOVERY_QUERY:q=java+spring+boot+python&sort=recency&per_page=20}
+  max-projetos: ${UPWORK_MAX_PROJETOS:20}
+  messages-client-id: ${UPWORK_MESSAGES_CLIENT_ID:20f1626cfa6ce37af2e83cd472294c59}
+  proposals-client-id: ${UPWORK_PROPOSALS_CLIENT_ID:1598ce365dbeb5bdea40df51eeb97780}
+  # OAuth 2.0 oficial (Settings > API Access na conta Upwork). Preenchido,
+  # substitui a raspagem de sessao do navegador, que a Upwork passou a recusar.
+  oauth-client-id: ${UPWORK_OAUTH_CLIENT_ID:}
+  oauth-client-secret: ${UPWORK_OAUTH_CLIENT_SECRET:}
+  oauth-refresh-token: ${UPWORK_OAUTH_REFRESH_TOKEN:}
+  auth-url-base: ${UPWORK_AUTH_URL_BASE:https://auth.upwork.com}
+  email: ${UPWORK_EMAIL:}
+  senha: ${UPWORK_PASSWORD:}
+  driverless:
+    enabled: ${UPWORK_DRIVERLESS_ENABLED:false}
+  login-headless: ${UPWORK_LOGIN_HEADLESS:true}
+  security-answer: ${UPWORK_SECURITY_ANSWER:}
+
+# Freelancer.com - cookies-based
+freelancer:
+  url-base: ${FREELANCER_URL_BASE:https://www.freelancer.com}
+  user-agent: ${FREELANCER_USER_AGENT:${FREELAS_USER_AGENT:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0}}
+  cookies-arquivo: ${FREELANCER_COOKIES_PATH:data/freelancer-cookies.json}
+  oauth-token: ${FREELANCER_OAUTH_TOKEN:}
+  bidder-id: ${FREELANCER_BIDDER_ID:0}
+  worker-slug: ${FREELANCER_WORKER_SLUG:}
+  discovery-query: ${FREELANCER_DISCOVERY_QUERY:user_role=freelancer&job_category=web-mobile-software-dev&sort=date&per_page=20}
+  max-projetos: ${FREELANCER_MAX_PROJETOS:20}
+  preferred: ${FREELANCER_PREFERRED:false}
+  verified: ${FREELANCER_VERIFIED:false}
+  escrow-vinculado: ${FREELANCER_ESCROW_VINCULADO:false}
+  email: ${FREELANCER_EMAIL:}
+  senha: ${FREELANCER_PASSWORD:}
+  driverless:
+    enabled: ${FREELANCER_DRIVERLESS_ENABLED:false}
+  login-headless: ${FREELANCER_LOGIN_HEADLESS:true}
+
+# Freelancer.com.br - marketplace BR, cookie-based com login manual (Cloudflare)
+freelancer-br:
+  url-base: ${FREELANCERBR_URL_BASE:https://www.freelancer.com.br}
+  # User-Agent do Chrome real do container: o cf_clearance fica atrelado ao
+  # par IP+UA, entao HTTP e navegador precisam usar o MESMO UA.
+  user-agent: ${FREELANCERBR_USER_AGENT:${FREELANCERBR_BROWSER_USER_AGENT:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36}}
+  # Discovery via API JSON global (mesmo backend, sem cookie e fora do Cloudflare).
+  api-url-base: ${FREELANCERBR_API_URL_BASE:https://www.freelancer.com}
+  cookies-arquivo: ${FREELANCERBR_COOKIES_PATH:data/freelancerbr-cookies.json}
+  discovery-query: ${FREELANCERBR_DISCOVERY_QUERY:}
+  max-projetos: ${FREELANCERBR_MAX_PROJETOS:20}
+  # Credenciais do proprio .com.br (site independente do freelancer.com).
+  email: ${FREELANCERBR_EMAIL:}
+  senha: ${FREELANCERBR_PASSWORD:}
+  oauth-token: ${FREELANCER_OAUTH_TOKEN:}
+  bidder-id: ${FREELANCER_BIDDER_ID:0}
+
+# Telegram
+telegram:
+  bot-token: ${TELEGRAM_BOT_TOKEN:}
+  chat-id: ${TELEGRAM_CHAT_ID:}
+  simulate: ${TELEGRAM_SIMULATE:false}
+
+# Sistema
+sistema:
+  modo-padrao: ${MODO_DEFAULT:ENSINAMENTO}
+  auto-ativo-inicial: ${AUTO_ATIVO_INICIAL:false}
+  polling-intervalo: ${POLLING_INTERVAL:60}
+  inbox-intervalo: ${INBOX_INTERVAL:60}
+  categoria-filtro: ${CATEGORIA_FILTRO:web-mobile-e-software}
+  limite-conexoes-diario: ${LIMITE_CONEXOES_DIARIO:200}
+  hora-renovacao-sessao: ${HORA_RENOVACAO_SESSAO:6}
+  min-conexoes-reserva: ${MIN_CONEXOES_RESERVA:700}
+  min-media-cliente: ${MIN_MEDIA_CLIENTE:3.5}
+  bloquear-cliente-sem-avaliacao: ${BLOQUEAR_CLIENTE_SEM_AVALIACAO:true}
+  sessao-invalida-cooldown-segundos: ${SISTEMA_SESSAO_INVALIDA_COOLDOWN_SEGUNDOS:600}
+  sessao-cache-segundos: ${SISTEMA_SESSAO_CACHE_SEGUNDOS:120}
+  inbox-limite-99freelas-por-ciclo: ${INBOX_LIMITE_99FREELAS_POR_CICLO:5}
+  inbox-limite-workana-por-ciclo: ${INBOX_LIMITE_WORKANA_POR_CICLO:10}
+  inbox-limite-padrao-por-ciclo: ${INBOX_LIMITE_PADRAO_POR_CICLO:5}
+
+scraper:
+  max-paginas: ${SCRAPER_MAX_PAGINAS:3}
+  delay-entre-paginas-ms: ${SCRAPER_DELAY_ENTRE_PAGINAS_MS:2000}
+  login-cache-millis: ${SCRAPER_LOGIN_CACHE_MILLIS:120000}
+
+real:
+  write:
+    enabled: ${REAL_WRITE_ENABLED:false}
+    simulate: ${REAL_WRITE_SIMULATE:false}
+
+controle:
+  api-token: ${CONTROLE_API_TOKEN:}
+
+# Spring
+spring:
+  jpa:
+    properties:
+      hibernate:
+        type:
+          json_format_mapper: org.hibernate.type.format.jackson.JacksonJsonFormatMapper
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    hibernate:
+      ddl-auto: update
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    cache: false
+
+# Logging
+logging:
+  level:
+    com.freelasatende: ${APP_LOG_LEVEL:INFO}
+    org.springframework: WARN

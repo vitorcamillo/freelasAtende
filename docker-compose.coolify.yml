@@ -1,0 +1,86 @@
+services:
+  freelas-atende:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      DB_URL: ${DB_URL:?defina DB_URL}
+      DB_USERNAME: ${DB_USERNAME:?defina DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD}
+      IA_PROVIDER: ${IA_PROVIDER:-codex}
+      IA_MODEL: ${IA_MODEL:-cohere/north-mini-code:free}
+      IA_BASE_URL: ${IA_BASE_URL:-}
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
+      IA_API_KEY: ${IA_API_KEY:-}
+      IA_TIMEOUT: "120"
+      IA_MAX_RETRIES: "3"
+      IA_FALLBACK_MODELS: ${IA_FALLBACK_MODELS:-nvidia/nemotron-3-ultra-550b-a55b:free,poolside/laguna-s-2.1:free}
+      IA_UNAVAILABLE_COOLDOWN_SEGUNDOS: "3600"
+      IA_AUTH_ALERTA_COOLDOWN_SEGUNDOS: "3600"
+      IA_FALLBACK_WHEN_MISSING_KEY: "true"
+      FREELAS_EMAIL: ${FREELAS_EMAIL:-}
+      FREELAS_PASSWORD: ${FREELAS_PASSWORD:-}
+      FREELAS_URL_BASE: https://www.99freelas.com.br
+      FREELAS_USER_AGENT: ${FREELAS_USER_AGENT:-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0}
+      # A imagem de producao e cookie-based. Login Chrome assistido roda fora do Coolify.
+      FREELAS_DRIVERLESS_ENABLED: ${FREELAS_DRIVERLESS_ENABLED:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      MODO_DEFAULT: ${MODO_DEFAULT:-LIVRE}
+      AUTO_ATIVO_INICIAL: ${AUTO_ATIVO_INICIAL:-true}
+      MARKETPLACES_ENABLED: ${MARKETPLACES_ENABLED:-99FREELAS,WORKANA,UPWORK,FREELANCER,FREELANCER_BR}
+      POLLING_INTERVAL: "60"
+      CATEGORIA_FILTRO: todas
+      MIN_CONEXOES_RESERVA: "0"
+      MIN_MEDIA_CLIENTE: "3.5"
+      REAL_WRITE_ENABLED: ${REAL_WRITE_ENABLED:-false}
+      REAL_WRITE_SIMULATE: ${REAL_WRITE_SIMULATE:-false}
+      TELEGRAM_SIMULATE: ${TELEGRAM_SIMULATE:-false}
+      SCRAPER_MAX_PAGINAS: "1"
+      SCRAPER_DELAY_ENTRE_PAGINAS_MS: "2000"
+      SISTEMA_SESSAO_INVALIDA_COOLDOWN_SEGUNDOS: "600"
+      SISTEMA_SESSAO_CACHE_SEGUNDOS: "120"
+      SCRAPER_LOGIN_CACHE_MILLIS: "120000"
+      INBOX_LIMITE_99FREELAS_POR_CICLO: "5"
+      INBOX_LIMITE_WORKANA_POR_CICLO: "10"
+      INBOX_LIMITE_PADRAO_POR_CICLO: "5"
+      ML_LAB_REAL_IA_ENABLED: "false"
+      ML_LAB_ARTIFACT_DIR: /app/data/ml-lab/runs
+      ML_LAB_CORPUS_SOURCE_ROOTS: /app/data,/app/data/ml-lab/ingest
+      ML_LAB_CORPUS_MAX_FILES: "500"
+      ML_LAB_CORPUS_MAX_BYTES_PER_FILE: "8000"
+      CODEX_HOME: /var/lib/codex
+      FREELAS_COOKIES_PATH: /app/data/cookies.json
+      WORKANA_COOKIES_PATH: /app/data/workana-cookies.json
+      WORKANA_WORKER_SLUG: ${WORKANA_WORKER_SLUG:-}
+      UPWORK_COOKIES_PATH: /app/data/upwork-cookies.json
+      UPWORK_MESSAGES_CLIENT_ID: ${UPWORK_MESSAGES_CLIENT_ID:-20f1626cfa6ce37af2e83cd472294c59}
+      UPWORK_PROPOSALS_CLIENT_ID: ${UPWORK_PROPOSALS_CLIENT_ID:-1598ce365dbeb5bdea40df51eeb97780}
+      UPWORK_AUTH_URL_BASE: ${UPWORK_AUTH_URL_BASE:-https://auth.upwork.com}
+      FREELANCER_COOKIES_PATH: /app/data/freelancer-cookies.json
+      FREELANCER_OAUTH_TOKEN: ${FREELANCER_OAUTH_TOKEN:-}
+      FREELANCER_BIDDER_ID: ${FREELANCER_BIDDER_ID:-}
+      FREELANCER_PREFERRED: ${FREELANCER_PREFERRED:-false}
+      FREELANCER_VERIFIED: ${FREELANCER_VERIFIED:-false}
+      FREELANCERBR_COOKIES_PATH: /app/data/freelancerbr-cookies.json
+      # Credenciais do proprio .com.br: habilitam a renovacao automatica da
+      # sessao (o login nao pede verificacao humana) e dispensam cookie manual.
+      FREELANCERBR_EMAIL: ${FREELANCERBR_EMAIL:-}
+      FREELANCERBR_PASSWORD: ${FREELANCERBR_PASSWORD:-}
+      CODEX_AUTH_JSON_B64: ${CODEX_AUTH_JSON_B64:-}
+      FREELAS_COOKIES_JSON_B64: ${FREELAS_COOKIES_JSON_B64:-}
+      UPWORK_COOKIES_JSON_B64: ${UPWORK_COOKIES_JSON_B64:-}
+      FREELANCER_COOKIES_JSON_B64: ${FREELANCER_COOKIES_JSON_B64:-}
+      FREELANCERBR_COOKIES_JSON_B64: ${FREELANCERBR_COOKIES_JSON_B64:-}
+    volumes:
+      - freelas_data:/app/data
+      - codex_home:/var/lib/codex
+    ports:
+      - "8080:8080"
+
+volumes:
+  freelas_data:
+  codex_home:

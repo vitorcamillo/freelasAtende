@@ -1,0 +1,88 @@
+@media (max-width: 1180px) {
+    .topbar,
+    .work-grid,
+    .control-grid,
+    .ml-lab-grid,
+    .focus-band,
+    .command-dock {
+        grid-template-columns: 1fr;
+    }
+
+    .status-rail,
+    .dock-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .audit-grid,
+    .metric-grid,
+    .control-hint-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dock-status {
+        justify-content: flex-start;
+    }
+
+    .detail-panel {
+        min-height: 560px;
+    }
+
+    .focus-preview {
+        border-left: 0;
+        border-top: 1px solid var(--line-soft);
+        padding-left: 0;
+        padding-top: 12px;
+    }
+}
+
+@media (max-width: 760px) {
+    .shell {
+        padding: 10px;
+    }
+
+    .topbar {
+        position: static;
+    }
+
+    .status-rail,
+    .audit-grid,
+    .metric-grid,
+    .button-grid,
+    .dock-actions,
+    .control-hint-grid,
+    .inbox-grid,
+    .ml-lab-grid,
+    .detail-actions,
+    .teach-actions,
+    .focus-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .tabs {
+        overflow-x: auto;
+        padding-bottom: 10px;
+    }
+
+    .tab-btn {
+        flex: 0 0 auto;
+    }
+
+    .last-update {
+        display: none;
+    }
+
+    .panel-head,
+    .quality-strip {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .queue-list,
+    .audit-list,
+    .logs-box,
+    .conversation-list,
+    .message-list {
+        max-height: none;
+        min-height: 360px;
+    }
+}

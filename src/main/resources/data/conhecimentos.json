@@ -1,0 +1,126 @@
+{
+  "tecnologias": [
+    "Java Spring Boot",
+    "React",
+    "Node.js",
+    "Python",
+    "Flask",
+    "Django",
+    "PostgreSQL",
+    "MySQL",
+    "MongoDB",
+    "Redis",
+    "Docker",
+    "AWS",
+    "Firebase",
+    "REST APIs",
+    "GraphQL"
+  ],
+  "servicos": [
+    {
+      "nome": "Landing Page",
+      "descricao": "Páginas únicas de apresentação",
+      "faixa_preco": "500-1500",
+      "dificuldade": "facil"
+    },
+    {
+      "nome": "Site Institucional",
+      "descricao": "Sites corporativos com múltiplas páginas",
+      "faixa_preco": "1500-5000",
+      "dificuldade": "medio"
+    },
+    {
+      "nome": "E-commerce",
+      "descricao": "Lojas virtuais completas",
+      "faixa_preco": "3000-10000",
+      "dificuldade": "medio"
+    },
+    {
+      "nome": "Sistema Web",
+      "descricao": "Sistemas administrativos, ERPs, CRMs",
+      "faixa_preco": "5000-20000",
+      "dificuldade": "dificil"
+    },
+    {
+      "nome": "API REST",
+      "descricao": "APIs para integração",
+      "faixa_preco": "1500-5000",
+      "dificuldade": "medio"
+    },
+    {
+      "nome": "App Mobile",
+      "descricao": "Aplicativos iOS/Android",
+      "faixa_preco": "8000-30000",
+      "dificuldade": "dificil"
+    },
+    {
+      "nome": "Correção de Bugs",
+      "descricao": "Correção de erros em sistemas existentes",
+      "faixa_preco": "200-2000",
+      "dificuldade": "facil"
+    },
+    {
+      "nome": "Migração de Dados",
+      "descricao": "Importação e migração de bases de dados",
+      "faixa_preco": "500-3000",
+      "dificuldade": "medio"
+    }
+  ],
+  "niveis_dificuldade": {
+    "facil": [
+      "Correção de Bugs",
+      "Landing Page simples",
+      "pequenos ajustes",
+      "Migração simples de dados"
+    ],
+    "medio": [
+      "Site Institucional",
+      "E-commerce simples",
+      "API REST",
+      "Migração complexa",
+      "Integração com pagamentos"
+    ],
+    "dificil": [
+      "Sistema completo",
+      "App Mobile",
+      "E-commerce grande porte",
+      "ERP/CRM",
+      "Arquitetura de microserviços"
+    ]
+  },
+  "categorias_interesse": [
+    "Web, Mobile & Software",
+    "Design & Multimedia",
+    "Marketing"
+  ],
+  "subcategorias_interesse": [
+    "Websites",
+    "E-commerce",
+    "Sistemas Web",
+    "APIs",
+    "Apps Mobile",
+    "UX/UI Design"
+  ],
+  "nao_atender": [
+    "Projetos que exigem hardware específico",
+    "Projetos com tecnologias que não dominamos",
+    "Projetos com prazo muito curto",
+    "Projetos com valores muito abaixo do mercado"
+  ],
+  "regras_decisao": [
+    "Sempre verificar se temos expertise na tecnologia",
+    "Verificar prazo é realista",
+    "Nunca propor valor abaixo do mínimo do cliente",
+    "Priorizar projetos com boa descrição"
+  ],
+  "precos_habituais": {
+    "landing_simples": 500,
+    "landing_completa": 1500,
+    "site_institucional": 3000,
+    "ecommerce_basico": 5000,
+    "ecommerce_completo": 8000,
+    "api_rest": 2500,
+    "sistema_web_medio": 8000,
+    "app_mobile_basico": 12000
+  }
+}

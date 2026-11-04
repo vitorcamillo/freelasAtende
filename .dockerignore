@@ -1,0 +1,17 @@
+.git
+.env
+.env.*
+.agent
+.idea
+.vscode
+target
+data
+logs
+captures
+profiles
+.codex
+**/auth.json
+**/cookies*.json*
+*.log
+*.pid
+*.png
