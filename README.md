@@ -2,7 +2,7 @@
 
 ![FreelasAtende](assets/portfolio/freelas-atende-cover.png)
 
-Esta é a edição pública do FreelasAtende. Para obter o código, use `git clone https://github.com/vitorcamillo/freelasAtende-public.git`. Consulte [LICENSE](LICENSE) e [CONTRIBUTING.md](CONTRIBUTING.md). No Freelancer.com.br, a descoberta consulta a listagem pública e pode aguardar passivamente a verificação do Cloudflare no Chrome residente; a inbox requer cookies importados manualmente. O projeto não contorna desafios de verificação.
+Esta é a edição pública do FreelasAtende. Para obter o código, use `git clone https://github.com/vitorcamillo/freelasAtende.git`. Consulte [LICENSE](LICENSE) e [CONTRIBUTING.md](CONTRIBUTING.md). No Freelancer.com.br, a descoberta consulta a listagem pública e pode aguardar passivamente a verificação do Cloudflare no Chrome residente; a inbox requer cookies importados manualmente. O projeto não contorna desafios de verificação.
 
 Central que monitora marketplaces de freelance (99Freelas, Workana, Upwork, Freelancer.com e Freelancer.com.br), descobre projetos novos, avalia a aderência de cada oportunidade com IA, gera rascunhos de resposta e de proposta e só envia ao cliente depois de aprovação humana via Telegram ou pelo painel web.
 
