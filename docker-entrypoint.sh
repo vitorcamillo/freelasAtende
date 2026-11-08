@@ -101,19 +101,24 @@ for host_freelas in www.freelancer.com.br freelancer.com.br; do
   fi
 done
 
-# Alinha o User-Agent padrao do Freelancer.com.br com o Chromium realmente
-# instalado na imagem. O pin exato de versao do pacote chromium sai do mirror
-# a cada security update do Debian e quebrou o build; sem pin, a major do
+# Alinha o User-Agent padrao do Freelancer.com.br com o Chrome realmente
+# instalado na imagem (google-chrome-stable, sem pin de versao). A major do
 # token Chrome/ do UA precisa acompanhar o binario. O cf_clearance real
 # continua sendo exportado pelo navegador (cookies.json.ua); isto corrige
 # apenas o fallback usado quando esse arquivo nao existe.
-if [ -z "${FREELANCERBR_USER_AGENT:-}" ] && [ -n "${CHROME_BIN:-}" ] && [ -x "$CHROME_BIN" ]; then
-  chrome_version="$("$CHROME_BIN" --version 2>/dev/null || true)"
-  chrome_major="$(printf '%s' "$chrome_version" | sed -n 's/.*[Cc]hromium[ \/]\([0-9][0-9]*\).*/\1/p')"
-  if [ -n "$chrome_major" ] && [ -n "${FREELANCERBR_BROWSER_USER_AGENT:-}" ]; then
-    FREELANCERBR_USER_AGENT="$(printf '%s' "$FREELANCERBR_BROWSER_USER_AGENT" | sed "s/Chrome\/[0-9][0-9]*/Chrome\/$chrome_major/")"
-    export FREELANCERBR_USER_AGENT
-    echo "[entrypoint] UA Freelancer.com.br alinhado ao Chromium $chrome_major"
+if [ -z "${FREELANCERBR_USER_AGENT:-}" ] && [ -n "${FREELANCERBR_BROWSER_USER_AGENT:-}" ]; then
+  if [ -n "${CHROME_BIN:-}" ] && [ -x "$CHROME_BIN" ]; then
+    chrome_version="$("$CHROME_BIN" --version 2>/dev/null || true)"
+    # Casar "Chromium 153.0..." e "Google Chrome 153.0...": a major e o
+    # primeiro numero da saida, independente do prefixo textual.
+    chrome_major="$(printf '%s' "$chrome_version" | sed -n 's/^[^0-9]*\([0-9][0-9]*\)\..*/\1/p')"
+    if [ -n "$chrome_major" ]; then
+      FREELANCERBR_USER_AGENT="$(printf '%s' "$FREELANCERBR_BROWSER_USER_AGENT" | sed "s/Chrome\/[0-9][0-9]*/Chrome\/$chrome_major/")"
+      export FREELANCERBR_USER_AGENT
+      echo "[entrypoint] UA Freelancer.com.br alinhado ao Chrome $chrome_major"
+    fi
+  else
+    echo "[entrypoint] aviso: CHROME_BIN ${CHROME_BIN:-vazio} nao executavel; UA padrao mantido"
   fi
 fi
 

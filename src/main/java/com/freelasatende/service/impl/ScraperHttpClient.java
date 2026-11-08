@@ -7,8 +7,6 @@ import com.freelasatende.service.interfaceServico.AutenticacaoService;
 import com.freelasatende.util.FreelasApiUtils;
 
 import javax.net.ssl.SSLSession;
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
@@ -19,28 +17,34 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 class ScraperHttpClient {
+
+    private static final Duration TIMEOUT_CHROME = Duration.ofSeconds(45);
 
     private final AutenticacaoService autenticacaoService;
     private final FreelasConfig freelasConfig;
     private final ObjectMapper objectMapper;
     private final String arquivoCookies;
+    private final String httpScript;
     private HttpClient httpClient;
 
     ScraperHttpClient(
         AutenticacaoService autenticacaoService,
         FreelasConfig freelasConfig,
         ObjectMapper objectMapper,
-        String arquivoCookies
+        String arquivoCookies,
+        String httpScript
     ) {
         this.autenticacaoService = autenticacaoService;
         this.freelasConfig = freelasConfig;
         this.objectMapper = objectMapper;
         this.arquivoCookies = arquivoCookies;
+        this.httpScript = httpScript;
     }
 
     String get(String url, String referer) throws Exception {
@@ -102,7 +106,8 @@ class ScraperHttpClient {
             .build();
 
         HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() >= 400) {
+        if (response.statusCode() >= 400
+            && isCloudflareChallenge(response.statusCode(), response.headers(), response.body())) {
             ChromeResponse chrome = requestViaChrome(
                 "POST",
                 url,
@@ -133,7 +138,8 @@ class ScraperHttpClient {
             .build();
 
         HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() >= 400) {
+        if (response.statusCode() >= 400
+            && isCloudflareChallenge(response.statusCode(), response.headers(), response.body())) {
             ChromeResponse chrome = requestViaChrome(
                 "POST",
                 url,
@@ -163,7 +169,8 @@ class ScraperHttpClient {
             .build();
 
         HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() >= 400) {
+        if (response.statusCode() >= 400
+            && isCloudflareChallenge(response.statusCode(), response.headers(), response.body())) {
             ChromeResponse chrome = requestViaChrome(
                 "POST",
                 url,
@@ -242,7 +249,7 @@ class ScraperHttpClient {
     ) throws Exception {
         List<String> command = new ArrayList<>();
         command.add("python3");
-        command.add("scripts/freelas_http.py");
+        command.add(httpScript);
         command.add("--method");
         command.add(method);
         command.add("--url");
@@ -260,25 +267,13 @@ class ScraperHttpClient {
             command.add(contentType);
         }
 
-        Process process = new ProcessBuilder(command)
-            .redirectErrorStream(true)
-            .start();
-
-        try (OutputStream stdin = process.getOutputStream()) {
-            if (body != null && !body.isEmpty()) {
-                stdin.write(body.getBytes(StandardCharsets.UTF_8));
-            }
+        String output;
+        try {
+            output = PythonHttpProcess.run(command, body, TIMEOUT_CHROME);
+        } catch (TimeoutException e) {
+            throw new IllegalStateException("Timeout no cliente Chrome HTTP", e);
         }
 
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        process.getInputStream().transferTo(stdout);
-        boolean finished = process.waitFor(45, TimeUnit.SECONDS);
-        if (!finished) {
-            process.destroyForcibly();
-            throw new IllegalStateException("Timeout no cliente Chrome HTTP");
-        }
-
-        String output = stdout.toString(StandardCharsets.UTF_8);
         JsonNode root = objectMapper.readTree(output);
         if (root.hasNonNull("error")) {
             throw new IllegalStateException(root.path("error").asText());
@@ -287,6 +282,31 @@ class ScraperHttpClient {
         String bodyBase64 = root.path("body_base64").asText("");
         String responseBody = new String(Base64.getDecoder().decode(bodyBase64), StandardCharsets.UTF_8);
         return new ChromeResponse(root.path("status").asInt(), responseBody);
+    }
+
+    /**
+     * Verdadeiro somente quando a resposta e um desafio do Cloudflare — ou seja,
+     * a requisicao NAO chegou a origem e um reenvio nao duplica o efeito no
+     * servidor. Status 403/503 com header {@code cf-mitigated: challenge} ou
+     * corpo tipico de challenge ({@code challenge-platform}, {@code cf-chl},
+     * {@code Just a moment}).
+     */
+    static boolean isCloudflareChallenge(int status, HttpHeaders headers, String body) {
+        if (status != 403 && status != 503) {
+            return false;
+        }
+        if (headers != null) {
+            String mitigated = String.join(",", headers.allValues("cf-mitigated"));
+            if (mitigated.toLowerCase(Locale.ROOT).contains("challenge")) {
+                return true;
+            }
+        }
+        if (body == null) {
+            return false;
+        }
+        return body.contains("challenge-platform")
+            || body.contains("cf-chl")
+            || body.contains("Just a moment");
     }
 
     private record ChromeResponse(int statusCode, String body) {

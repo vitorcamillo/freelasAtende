@@ -8,15 +8,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Transporte HTTP do Freelancer.com.br com impressao digital de Chrome real.
@@ -95,21 +94,9 @@ class FreelancerBrHttp {
             comando.add("--no-redirect");
         }
 
-        Process processo = null;
         try {
-            processo = new ProcessBuilder(comando).redirectErrorStream(true).start();
-            try (OutputStream stdin = processo.getOutputStream()) {
-                if (corpo != null && !corpo.isEmpty()) {
-                    stdin.write(corpo.getBytes(StandardCharsets.UTF_8));
-                }
-            }
-            ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-            processo.getInputStream().transferTo(stdout);
-            if (!processo.waitFor(TIMEOUT_SEGUNDOS, TimeUnit.SECONDS)) {
-                processo.destroyForcibly();
-                throw falhaRede("Timeout no transporte HTTP Freelancer.com.br", null);
-            }
-            JsonNode root = objectMapper.readTree(stdout.toString(StandardCharsets.UTF_8));
+            String stdout = PythonHttpProcess.run(comando, corpo, Duration.ofSeconds(TIMEOUT_SEGUNDOS));
+            JsonNode root = objectMapper.readTree(stdout);
             if (root.hasNonNull("error")) {
                 throw falhaRede("Transporte HTTP Freelancer.com.br: " + root.path("error").asText(), null);
             }
@@ -118,15 +105,13 @@ class FreelancerBrHttp {
             return new Resposta(root.path("status").asInt(), root.path("url").asText(url), body);
         } catch (MarketplaceAdapterException e) {
             throw e;
+        } catch (TimeoutException e) {
+            throw falhaRede("Timeout no transporte HTTP Freelancer.com.br", null);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw falhaRede("Transporte HTTP Freelancer.com.br interrompido", e);
         } catch (Exception e) {
             throw falhaRede("Falha no transporte HTTP Freelancer.com.br", e);
-        } finally {
-            if (processo != null && processo.isAlive()) {
-                processo.destroyForcibly();
-            }
         }
     }
 

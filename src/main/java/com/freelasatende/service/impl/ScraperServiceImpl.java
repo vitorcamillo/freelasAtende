@@ -59,13 +59,17 @@ public class ScraperServiceImpl implements ScraperService {
     @Value("${auth.cookies-arquivo:data/cookies.json}")
     private String arquivoCookies;
 
+    @Value("${freelancer-br.http-script:scripts/freelas_http.py}")
+    private String httpScript;
+
     private volatile Boolean loginCacheValor = null;
     private volatile long loginCacheAteMillis = 0;
     private volatile long loginCacheVersaoCookies = Long.MIN_VALUE;
 
     private synchronized ScraperHttpClient httpClient() {
         if (httpClient == null) {
-            httpClient = new ScraperHttpClient(autenticacaoService, freelasConfig, objectMapper, arquivoCookies);
+            httpClient = new ScraperHttpClient(
+                autenticacaoService, freelasConfig, objectMapper, arquivoCookies, httpScript);
         }
         return httpClient;
     }

@@ -13,9 +13,9 @@ class DockerChromeContractTest {
     void imagemDeProducaoIncluiChromeEDisplayVirtualParaLoginAssistido() throws Exception {
         String dockerfile = Files.readString(Path.of("Dockerfile"));
 
-        assertTrue(dockerfile.contains("chromium"));
+        assertTrue(dockerfile.contains("google-chrome-stable"));
         assertTrue(dockerfile.contains("xvfb"));
-        assertTrue(dockerfile.contains("CHROME_BIN=/usr/bin/chromium"));
+        assertTrue(dockerfile.contains("CHROME_BIN=/usr/bin/google-chrome-stable"));
         assertTrue(dockerfile.contains("Xvfb :99"));
     }
 }

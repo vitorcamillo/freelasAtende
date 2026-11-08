@@ -2,9 +2,10 @@
 import argparse
 import base64
 import json
+import os
+import stat
 import sys
-
-from curl_cffi import requests
+import tempfile
 
 
 def _chrome_major() -> str:
@@ -31,6 +32,35 @@ CHROME_CLIENT_HINTS = {
 }
 
 
+def salvar_cookie_jar(caminho, cookies):
+    """Grava o cookie jar atomicamente: tmp no mesmo diretorio, fsync e rename.
+
+    O Laravel do Freelancer.com.br rotaciona a sessao a cada resposta; uma
+    escrita truncada (kill no meio ou dois processos simultaneos) perde a
+    sessao inteira. Preserva o modo do arquivo original quando ele existe.
+    """
+    diretorio = os.path.dirname(os.path.abspath(caminho)) or "."
+    try:
+        modo_original = stat.S_IMODE(os.stat(caminho).st_mode)
+    except OSError:
+        modo_original = None
+    fd, tmp = tempfile.mkstemp(dir=diretorio, prefix=".cookie-jar-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(cookies, fh, ensure_ascii=False)
+            fh.flush()
+            os.fsync(fh.fileno())
+        if modo_original is not None:
+            os.chmod(tmp, modo_original)
+        os.replace(tmp, caminho)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--method", required=True)
@@ -53,6 +83,10 @@ def main():
     parser.add_argument("--user-agent", default="")
     parser.add_argument("--no-redirect", action="store_true")
     args = parser.parse_args()
+
+    # Import preguicoso: o modulo precisa poder ser importado (ex.: testes)
+    # sem curl_cffi instalado e sem rede.
+    from curl_cffi import requests
 
     try:
         with open(args.cookie_file, "r", encoding="utf-8") as fh:
@@ -123,8 +157,7 @@ def main():
                 if valor:
                     atualizados[name] = valor
             if atualizados != cookies:
-                with open(args.cookie_jar_out, "w", encoding="utf-8") as fh:
-                    json.dump(atualizados, fh, ensure_ascii=False)
+                salvar_cookie_jar(args.cookie_jar_out, atualizados)
 
         body = response.content or b""
         print(json.dumps({
