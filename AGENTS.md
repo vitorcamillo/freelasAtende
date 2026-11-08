@@ -8,19 +8,17 @@
 | Workana | cookies | cookies | discovery, inbox, msg, pergunta |
 | Upwork | Auto (driverless + senha + pergunta seguranca + OTP Gmail) | cookies auto | discovery, inbox, msg, pergunta |
 | Freelancer.com | Auto (driverless) | cookies auto | discovery, inbox, msg, pergunta |
-| Freelancer.com.br | Discovery: listagem `/projetos` via HTTP, com fallback para Chrome residente aguardando passivamente a verificacao do Cloudflare. Inbox: **MANUAL** (Cloudflare) | cookies manuais (so inbox) | discovery, inbox |
+| Freelancer.com.br | Discovery: **Auto** (listagem `/projetos` via Chrome real). Inbox: **MANUAL** (Cloudflare) | cookies manuais | discovery, inbox, msg, pergunta, proposta |
 
-## Freelancer.com.br — discovery e inbox (IMPORTANTE)
+## Freelancer.com.br — discovery via Chrome + inbox por cookie (IMPORTANTE)
 
 A area autenticada e a listagem de projetos podem apresentar o **Cloudflare
 Managed Challenge**. O comportamento pode variar. A estrategia e dividida:
 
-- **Discovery = listagem HTML do proprio `.com.br`.** O client tenta primeiro
-  baixar `/projetos` por HTTP. Se a resposta nao resolver a listagem, usa o Chrome
-  residente e aguarda passivamente a verificacao do Cloudflare; o codigo nao
-  interage com o desafio nem garante que ele sera liberado. A listagem traz os
-  dados usados pelo discovery. Nao ha configuracao `api-url-base` nem
-  `discovery-query` para esse fluxo.
+- **Discovery = listagem `/projetos` pelo Chrome real.** O .com.br tem catalogo
+  proprio (ids fora da API global), entao `FreelancerBrBrowser.baixarListagemProjetos`
+  abre `/projetos` (unica rota sob o desafio) com os cookies injetados e o
+  `FreelancerBrMarketplaceAdapter` extrai os cards. Envio e inbox seguem por HTTP.
 - **Inbox/mensagens = cookie manual.** A area logada continua atras do Cloudflare.
   Quando a sessao expira, o polling detecta pela inbox e **avisa no Telegram**
   ("Sessao Freelancer.com.br expirada"). O usuario faz login no navegador e **pede
@@ -31,7 +29,7 @@ Managed Challenge**. O comportamento pode variar. A estrategia e dividida:
   `XSRF-TOKEN`.
 - **Como validar**: `verificarLogin()` baixa `/account/inbox`; se voltar a pagina
   do Cloudflare ou "Conecte-se", a sessao (da inbox) esta invalida. O discovery
-  nao depende disso.
+  usa os mesmos cookies no Chrome.
 
 O `cf_clearance` expira mais rapido que a sessao (atrelado a IP+User-Agent) e afeta
 apenas a inbox. Se a inbox voltar a bater no desafio mesmo com
@@ -39,7 +37,7 @@ apenas a inbox. Se a inbox voltar a bater no desafio mesmo com
 
 ### Inbox/mensagens do .com.br
 
-**Mapa do site autenticado (confirmado na sessao logada de vitaocam):**
+**Mapa do site autenticado (confirmado na sessao logada da conta do operador):**
 
 | Area | Caminho |
 |---|---|
@@ -56,9 +54,9 @@ Projetos publicos: `/projetos`; projeto individual:
 `/projetos/{categoria}/{sub}/{slug}-{ID_ALFANUM}` (ID ex.: `3BOPS371`).
 
 Inbox HTML: tabela com abas Mensagens/Arquivado e colunas Data/Contato/Mensagem.
-Conta nova pode estar vazia ("Voce nao tem..."). Ligar as capabilities
-`inbox`/`perguntas` no `FreelancerBrMarketplaceAdapter` quando o parser de inbox
-for validado com conversas reais.
+Conta nova pode estar vazia ("Voce nao tem..."). Capabilities ja habilitadas no
+`FreelancerBrMarketplaceAdapter`: `discovery`, `inbox`, `perguntas` (primeiro
+contato via "Estou interessado") e `propostas`.
 
 ## Credenciais e segredos
 

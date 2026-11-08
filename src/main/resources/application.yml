@@ -97,6 +97,8 @@ freelancer-br:
   cookies-arquivo: ${FREELANCERBR_COOKIES_PATH:data/freelancerbr-cookies.json}
   discovery-query: ${FREELANCERBR_DISCOVERY_QUERY:}
   max-projetos: ${FREELANCERBR_MAX_PROJETOS:20}
+  # Transporte com fingerprint de Chrome (o Cloudflare recusa o HttpClient do Java).
+  http-script: ${FREELANCERBR_HTTP_SCRIPT:scripts/freelas_http.py}
   # Credenciais do proprio .com.br (site independente do freelancer.com).
   email: ${FREELANCERBR_EMAIL:}
   senha: ${FREELANCERBR_PASSWORD:}

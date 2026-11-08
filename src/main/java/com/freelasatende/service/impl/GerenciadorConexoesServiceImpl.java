@@ -3,6 +3,7 @@ package com.freelasatende.service.impl;
 import com.freelasatende.config.OperacaoDefaults;
 import com.freelasatende.model.entity.Configuracao;
 import com.freelasatende.model.enums.ModoSistema;
+import com.freelasatende.model.enums.PlataformaFreela;
 import com.freelasatende.repository.ConfiguracaoRepository;
 import com.freelasatende.service.interfaceServico.GerenciadorConexoesService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Implementacao do gerenciador de conexoes e limites do 99Freelas.
@@ -31,6 +35,12 @@ public class GerenciadorConexoesServiceImpl implements GerenciadorConexoesServic
     @Value("${sistema.hora-renovacao-sessao:-1}")
     private int horaRenovacaoSessaoConfigurada;
 
+    /**
+     * Recusa remota por limite de conexoes (ex.: semanal do Workana): circuito aberto
+     * POR PLATAFORMA ate o reset diario — o limite de uma plataforma nao bloqueia as demais.
+     */
+    private final Set<PlataformaFreela> plataformasComLimiteRemoto = ConcurrentHashMap.newKeySet();
+
     @Override
     public boolean temConexoesDisponiveis() {
         verificarResetDiario();
@@ -39,9 +49,11 @@ public class GerenciadorConexoesServiceImpl implements GerenciadorConexoesServic
         int usadas = usadasHoje(config);
 
         int limiteConexoesDiario = limiteConexoesDiario(config);
-        boolean disponivel = usadas < limiteConexoesDiario;
+        boolean dentroDoLimiteLocal = usadas < limiteConexoesDiario;
+        // So o limite diario local: a recusa remota e por plataforma (limiteRemotoAtivo).
+        boolean disponivel = dentroDoLimiteLocal;
 
-        if (!disponivel) {
+        if (!dentroDoLimiteLocal) {
             log.warn("Limite de conexoes diarias atingido: {}/{}", usadas, limiteConexoesDiario);
         }
 
@@ -137,6 +149,22 @@ public class GerenciadorConexoesServiceImpl implements GerenciadorConexoesServic
     }
 
     @Override
+    public void marcarLimiteRemotoExterno(PlataformaFreela plataforma) {
+        PlataformaFreela alvo = PlataformaFreela.normalizar(plataforma);
+        // Warn so na transicao false->true: retries do mesmo projeto nao inundam o log.
+        if (plataformasComLimiteRemoto.add(alvo)) {
+            log.warn("Limite de conexoes do marketplace {} detectado no lado remoto; novas abordagens nele serao adiadas ate o reset diario",
+                alvo.label());
+        }
+    }
+
+    @Override
+    public boolean limiteRemotoAtivo(PlataformaFreela plataforma) {
+        verificarResetDiario();
+        return plataformasComLimiteRemoto.contains(PlataformaFreela.normalizar(plataforma));
+    }
+
+    @Override
     public void verificarResetDiario() {
         Configuracao config = obterConfiguracao();
         LocalDateTime ultimoReset = config.getDataUltimoReset();
@@ -151,6 +179,10 @@ public class GerenciadorConexoesServiceImpl implements GerenciadorConexoesServic
             if (resetados > 0) {
                 log.info("Reset diario de conexoes realizado em {}", agora);
             }
+            // O reset local reabre o circuito remoto de todas as plataformas: se o limite
+            // semanal do marketplace persistir, a primeira tentativa do dia detecta de
+            // novo e remarca (1/dia).
+            plataformasComLimiteRemoto.clear();
         }
     }
 
@@ -161,11 +193,18 @@ public class GerenciadorConexoesServiceImpl implements GerenciadorConexoesServic
         int usadas = usadasHoje(config);
         int limiteConexoesDiario = limiteConexoesDiario(config);
 
-        return String.format("Conexoes abertas: %d/%d | Limite diario: %d | Sessao renovavel: %s",
+        String limiteRemoto = plataformasComLimiteRemoto.isEmpty()
+            ? ""
+            : " | limite remoto do marketplace ativo: " + plataformasComLimiteRemoto.stream()
+                .map(PlataformaFreela::label)
+                .sorted()
+                .collect(Collectors.joining(", "));
+        return String.format("Conexoes abertas: %d/%d | Limite diario: %d | Sessao renovavel: %s%s",
             usadas,
             limiteConexoesDiario,
             limiteConexoesDiario - usadas,
-            precisaRenovarSessao() ? "SIM" : "NAO"
+            precisaRenovarSessao() ? "SIM" : "NAO",
+            limiteRemoto
         );
     }
 

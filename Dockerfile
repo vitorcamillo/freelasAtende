@@ -2,6 +2,15 @@ FROM maven:3.9.9-eclipse-temurin-21 AS build
 
 WORKDIR /workspace
 COPY pom.xml .
+# Public source pinned independently of Maven Central publication.
+RUN mkdir /tmp/javadriveless \
+    && curl --fail --location --silent --show-error --connect-timeout 5 --max-time 30 --retry 2 \
+        https://codeload.github.com/vitorcamillo/javaDriveless/tar.gz/1521539b26c7c60c44988ba04919dfab7898f5c4 \
+        -o /tmp/javadriveless.tar.gz \
+    && echo "91afa02207fbe89d114e3ecdfafe0e2042899b5f81b26787c4deba3165dbd0c3  /tmp/javadriveless.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/javadriveless.tar.gz --strip-components=1 -C /tmp/javadriveless \
+    && mvn -q -B -f /tmp/javadriveless/pom.xml -DskipTests install \
+    && rm -rf /tmp/javadriveless /tmp/javadriveless.tar.gz
 RUN mvn -q -B -DskipTests dependency:go-offline
 COPY src src
 COPY scripts/check-file-size.sh scripts/check-file-size.sh
@@ -15,7 +24,7 @@ COPY --from=java-runtime /opt/java/openjdk /opt/java/openjdk
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates curl fonts-liberation xauth xvfb wget gnupg \
+        ca-certificates curl fonts-liberation python3 python3-pip xauth xvfb wget gnupg xdotool \
     && curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
         | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
@@ -23,6 +32,8 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y --no-install-recommends google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --break-system-packages --no-cache-dir curl_cffi==0.15.0
 
 RUN npm install --global @openai/codex@0.139.0
 
@@ -32,13 +43,14 @@ RUN useradd --create-home --shell /usr/sbin/nologin app \
 
 WORKDIR /app
 COPY --from=build /workspace/target/freelas-atende-1.0.0-SNAPSHOT.jar /app/app.jar
+COPY --chown=app:app scripts/freelas_http.py /app/scripts/freelas_http.py
 COPY --chown=app:app docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod 755 /app/docker-entrypoint.sh
 
 ENV JAVA_HOME=/opt/java/openjdk \
     PATH="/opt/java/openjdk/bin:${PATH}" \
-    CHROME_BIN=/usr/bin/google-chrome \
-    CHROMIUM_BIN=/usr/bin/google-chrome \
+    CHROME_BIN=/usr/bin/chromium \
+    CHROMIUM_BIN=/usr/bin/chromium \
     FREELANCERBR_BROWSER_USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36" \
     SERVER_PORT=8080 \
     SPRING_PROFILES_ACTIVE=mysql \

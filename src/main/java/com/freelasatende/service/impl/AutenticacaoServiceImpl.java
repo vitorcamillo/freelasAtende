@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Implementação do serviço de autenticação no 99Freelas.
  * Gerencia cookies de sessão e re-login automático.
- * Suporta cookies importados manualmente ou exportados pelo login do JavaDriverless.
+ * Suporta cookies vindos do JavaDriverless (CAPTCHA solver).
  */
 @Slf4j
 @Service
@@ -156,7 +156,7 @@ public class AutenticacaoServiceImpl implements AutenticacaoService {
 
     /**
      * Carrega cookies exportados pelo JavaDriverless.
-     * Chamado quando o login assistido ou a importacao manual grava data/cookies.json
+     * Chamado quando o CAPTCHA solver exporta cookies para data/cookies.json
      */
     @Override
     public void carregarCookiesJson(String jsonCookies) {

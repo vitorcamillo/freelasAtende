@@ -135,7 +135,7 @@
         <dependency>
             <groupId>io.github.vitorcamillo</groupId>
             <artifactId>javadriveless</artifactId>
-            <version>1.11.9</version>
+            <version>1.12.3</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>

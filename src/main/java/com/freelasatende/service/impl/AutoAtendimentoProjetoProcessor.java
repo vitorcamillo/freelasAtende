@@ -87,7 +87,7 @@ class AutoAtendimentoProjetoProcessor {
     void processarProjetoInterno(Projeto projeto, ModoSistema modo, boolean reavaliacaoExplicita) {
         PlataformaProjetoHelper.normalizarProjeto(projeto);
         try {
-            if (limiteConexoesBloqueia(projeto, modo)) {
+            if (limiteConexoesBloqueia(projeto)) {
                 log.info("Abordagem inicial do projeto {} aguardando renovacao do limite diario de conexoes",
                     projeto.getId());
                 return;
@@ -261,12 +261,18 @@ class AutoAtendimentoProjetoProcessor {
         throw ultimaFalha != null ? ultimaFalha : new IllegalStateException("Falha ao enriquecer projeto");
     }
 
-    private boolean limiteConexoesBloqueia(Projeto projeto, ModoSistema modo) {
-        if (!realWriteEnabled
-            || !operationalSafetyPolicy.allowsAutomaticClientSend(modo, realWriteEnabled, realWriteSimulateEnabled)) {
+    private boolean limiteConexoesBloqueia(Projeto projeto) {
+        // Em qualquer modo: sem conexao o projeto so aguarda a renovacao do limite;
+        // a checagem de modo nao entra aqui para a abordagem nao virar pendencia.
+        if (!realWriteEnabled) {
             return false;
         }
-        MarketplaceAdapter adapter = marketplaceAdapterRegistry.para(PlataformaProjetoHelper.plataformaOuPadrao(projeto));
+        PlataformaFreela plataforma = PlataformaProjetoHelper.plataformaOuPadrao(projeto);
+        // Circuito remoto por plataforma (ex.: Workana nao passa pelo gate local de conexoes).
+        if (gerenciadorConexoes.limiteRemotoAtivo(plataforma)) {
+            return true;
+        }
+        MarketplaceAdapter adapter = marketplaceAdapterRegistry.para(plataforma);
         return adapter.capabilities().conexoes() && !gerenciadorConexoes.temConexoesDisponiveis();
     }
 

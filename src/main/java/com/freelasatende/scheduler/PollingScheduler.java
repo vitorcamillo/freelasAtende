@@ -354,7 +354,7 @@ public class PollingScheduler {
      */
     private boolean exigeLoginManual(PlataformaFreela plataforma) {
         // O Freelancer.com.br saiu daqui: o login dele (/login + POST /conecte-se)
-        // nao pede verificacao humana, entao com credenciais configuradas a
+        // nao tem captcha e o Chrome real resolve o desafio do Cloudflare, entao a
         // sessao e renovada por automacao como nas demais plataformas.
         return plataforma == PlataformaFreela.WORKANA;
     }

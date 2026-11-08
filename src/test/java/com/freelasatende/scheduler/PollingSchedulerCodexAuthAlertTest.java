@@ -170,7 +170,7 @@ class PollingSchedulerCodexAuthAlertTest {
         when(autoAtendimentoService.contarAcoesPendentes()).thenReturn(0L);
 
         // O .com.br passou a ter login automatico: /login + POST /conecte-se nao
-        // pede verificacao humana. Entao a
+        // tem captcha e o Chrome real resolve o desafio do Cloudflare. Entao a
         // sessao invalida deve DISPARAR renovacao, e nao pedir cookie ao usuario.
         doThrow(new MarketplaceAdapterException(
             PlataformaFreela.FREELANCER_BR,

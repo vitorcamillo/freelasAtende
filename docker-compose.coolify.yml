@@ -67,9 +67,10 @@ services:
       FREELANCER_VERIFIED: ${FREELANCER_VERIFIED:-false}
       FREELANCERBR_COOKIES_PATH: /app/data/freelancerbr-cookies.json
       # Credenciais do proprio .com.br: habilitam a renovacao automatica da
-      # sessao (o login nao pede verificacao humana) e dispensam cookie manual.
+      # sessao (o site nao tem captcha no login) e dispensam cookie manual.
       FREELANCERBR_EMAIL: ${FREELANCERBR_EMAIL:-}
       FREELANCERBR_PASSWORD: ${FREELANCERBR_PASSWORD:-}
+      FREELANCERBR_HTTP_SCRIPT: /app/scripts/freelas_http.py
       CODEX_AUTH_JSON_B64: ${CODEX_AUTH_JSON_B64:-}
       FREELAS_COOKIES_JSON_B64: ${FREELAS_COOKIES_JSON_B64:-}
       UPWORK_COOKIES_JSON_B64: ${UPWORK_COOKIES_JSON_B64:-}

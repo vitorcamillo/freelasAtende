@@ -1,0 +1,107 @@
+{
+  "name": "br-docker-server-xvfb",
+  "runtimePolicy": "legacy-spoof",
+  "browserVersion": "",
+  "locale": "pt-BR",
+  "timezoneId": "America/Sao_Paulo",
+  "platform": "Linux x86_64",
+  "uaPlatform": "Linux",
+  "platformVersion": "",
+  "architecture": "x86",
+  "bitness": "64",
+  "mobile": false,
+  "model": "",
+  "wow64": false,
+  "formFactors": [
+    "Desktop"
+  ],
+  "languages": [
+    "pt-BR",
+    "pt",
+    "en-US",
+    "en"
+  ],
+  "hardwareConcurrency": 4,
+  "deviceMemory": 8,
+  "maxTouchPoints": 0,
+  "vendor": "Google Inc.",
+  "doNotTrack": false,
+  "colorScheme": "light",
+  "prefersReducedMotion": "no-preference",
+  "prefersReducedTransparency": "no-preference",
+  "prefersContrast": "no-preference",
+  "forcedColors": "none",
+  "screen": {
+    "mode": "real"
+  },
+  "webgl": {
+    "mode": "real"
+  },
+  "webRtc": {
+    "mode": "altered",
+    "protectLocalIps": true,
+    "disableUdp": true,
+    "publicIp": "",
+    "allowedIps": []
+  },
+  "geolocation": {
+    "mode": "override",
+    "latitude": -23.5505,
+    "longitude": -46.6333,
+    "accuracy": 100.0
+  },
+  "permissions": {
+    "geolocation": "profile",
+    "notifications": "default"
+  },
+  "mediaDevices": {
+    "mode": "real",
+    "audioInputs": 1,
+    "audioOutputs": 1,
+    "videoInputs": 0
+  },
+  "speech": {
+    "mode": "auto",
+    "voices": []
+  },
+  "audio": {
+    "mode": "real",
+    "noise": 0
+  },
+  "canvas": {
+    "mode": "real",
+    "noise": 0
+  },
+  "clientRects": {
+    "mode": "real",
+    "noise": 0
+  },
+  "storage": {
+    "mode": "real"
+  },
+  "fonts": {
+    "mode": "real",
+    "families": []
+  },
+  "ports": {
+    "mode": "real",
+    "protectedPorts": [
+      3001,
+      3389,
+      5900,
+      5800,
+      7070,
+      6568,
+      5938,
+      63333
+    ]
+  },
+  "connection": {
+    "mode": "real",
+    "effectiveType": "4g",
+    "downlink": 10.0,
+    "rtt": 50,
+    "saveData": false,
+    "type": "wifi"
+  }
+}

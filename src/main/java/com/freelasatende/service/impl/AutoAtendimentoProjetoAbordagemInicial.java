@@ -70,15 +70,10 @@ class AutoAtendimentoProjetoAbordagemInicial {
         }
 
         PlataformaFreela plataforma = PlataformaProjetoHelper.plataformaOuPadrao(projeto);
-        if (realWriteEnabled && consomeConexao(projeto) && !gerenciadorConexoes.temConexoesDisponiveis()) {
-            if (!operationalSafetyPolicy.allowsAutomaticClientSend(modo, realWriteEnabled, realWriteSimulateEnabled)) {
-                // Modo com aprovacao humana: sem conexao, a abordagem vira pendencia para o operador.
-                log.info("Abordagem inicial do projeto {} adiada automaticamente por limite diario de conexoes",
-                    projeto.getId());
-                return false;
-            }
-            // Envio automatico liberado e outra execucao consumiu a ultima conexao durante a
-            // avaliacao: mesmo adiamento da reserva recusada (projeto volta depois do reset).
+        if (realWriteEnabled && limiteDeConexoesBloqueia(projeto, plataforma)) {
+            // Em qualquer modo (ENSINAMENTO inclusive): sem conexao (limite diario local ou
+            // circuito remoto) a abordagem inicial e adiada em silencio e volta depois do
+            // reset; ela nunca vira pendencia de aprovacao humana.
             adiarPorLimiteLocal(projeto, AcaoPendente.builder()
                 .plataforma(plataforma)
                 .projetoId(projeto.getId())
@@ -259,6 +254,12 @@ class AutoAtendimentoProjetoAbordagemInicial {
         ModoSistema modo,
         Throwable erro
     ) {
+        // Circuito remoto: o marketplace recusou por limite de conexoes; marca o gerenciador
+        // local para os proximos projetos DA PLATAFORMA seguirem o caminho de adiamento sem POST.
+        if (tipoMarketplaceNaCadeia(erro) == MarketplaceAdapterErrorType.LIMITE_CONEXOES) {
+            gerenciadorConexoes.marcarLimiteRemotoExterno(PlataformaProjetoHelper.plataformaOuPadrao(projeto));
+        }
+
         acao.setStatus(StatusAcaoPendente.ERRO);
         acao.setObservacaoUsuario(observacaoFalhaOperacional(erro));
         acao.setDataAtualizacao(LocalDateTime.now());
@@ -366,5 +367,17 @@ class AutoAtendimentoProjetoAbordagemInicial {
         return marketplaceAdapterRegistry.para(PlataformaProjetoHelper.plataformaOuPadrao(projeto))
             .capabilities()
             .conexoes();
+    }
+
+    /**
+     * Circuito remoto por plataforma (ex.: limite semanal do Workana, que nao passa pelo
+     * gate local de conexoes); o limite diario local continua valendo so para as
+     * plataformas que consomem conexao.
+     */
+    private boolean limiteDeConexoesBloqueia(Projeto projeto, PlataformaFreela plataforma) {
+        if (gerenciadorConexoes.limiteRemotoAtivo(plataforma)) {
+            return true;
+        }
+        return consomeConexao(projeto) && !gerenciadorConexoes.temConexoesDisponiveis();
     }
 }

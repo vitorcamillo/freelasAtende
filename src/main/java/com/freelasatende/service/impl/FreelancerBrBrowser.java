@@ -3,12 +3,15 @@ package com.freelasatende.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.freelasatende.config.FreelancerBrConfig;
 import io.github.selenium.javaDriverless.JavaDriverless;
+import io.github.selenium.javaDriverless.types.BrowserFingerprintProfile;
 import io.github.selenium.javaDriverless.types.ChromeOptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
+import java.io.InputStream;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -25,12 +28,13 @@ import java.util.concurrent.TimeUnit;
  * <p>Motivo medido: a listagem publica {@code /projetos} e a unica rota do site
  * protegida por Cloudflare Managed Challenge — a area logada
  * ({@code /account/*}, {@code /project/*}, {@code /csrfresh}) responde 200 por
- * HTTP puro. Ou seja, so a DESCOBERTA precisa de
+ * HTTP puro com fingerprint de Chrome. Ou seja, so a DESCOBERTA precisa de
  * navegador; envio e inbox nao precisam.</p>
  *
- * <p>O login ({@code /login} + POST {@code /conecte-se}) nao pede verificacao
- * humana, entao o Chrome pode renovar a sessao e exportar os cookies; se o
- * Cloudflare barrar, a sessao depende dos cookies importados manualmente.</p>
+ * <p>O login ({@code /login} + POST {@code /conecte-se}) tambem nao tem captcha,
+ * entao o Chrome renova a sessao sozinho e exporta os cookies — incluindo o
+ * {@code cf_clearance}, que fica atrelado ao IP de saida. Como no container o
+ * Chrome e o cliente HTTP compartilham o mesmo IP, os cookies servem aos dois.</p>
  */
 @Slf4j
 @Component
@@ -73,6 +77,9 @@ class FreelancerBrBrowser {
      * clearance, historico) persiste entre os ciclos.
      */
     private JavaDriverless driverResidente;
+
+    /** Perfil extraido do classpath para um arquivo real (fromJson exige Path). */
+    private static volatile Path perfilExtraido;
 
     private void encerrarDriverResidente() {
         if (driverResidente != null) {
@@ -236,18 +243,27 @@ class FreelancerBrBrowser {
             || minusculo.contains("challenges.cloudflare.com");
     }
 
-    /**
-     * Aguarda a saída passiva do desafio do Cloudflare.
-     *
-     * <p>O código público não interage com o desafio: apenas observa título e
-     * corpo da página. O desafio às vezes libera sozinho no Chrome real; se não
-     * liberar, a sessão depende dos cookies manuais.</p>
-     */
+    /** O desafio do Cloudflare resolve sozinho em alguns segundos no Chrome real. */
     private void aguardarSaidaDoDesafio(JavaDriverless driver) throws Exception {
         long limite = System.currentTimeMillis() + 45_000L;
         String t = "";
         String c = "";
         while (System.currentTimeMillis() < limite) {
+            // O desafio atual do Cloudflare ("Verifying you are human") renderiza
+            // um checkbox do Turnstile que precisa de clique real de mouse (CDP),
+            // nao basta aguardar. O helper ja validado no 99Freelas cuida do
+            // scroll, da geometria e do clique com jitter humano.
+            LoginDriverlessDomHelper.clicarTurnstileAutomaticamente(
+                driver,
+                "iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile']",
+                ".cf-turnstile, div[data-sitekey]");
+            // O Turnstile detecta o clique sintetico via CDP e nao completa o
+            // desafio; o xdotool dispara evento X11 real no ponto do checkbox,
+            // indistinguivel de um humano no mesmo display :99.
+            LoginDriverlessDomHelper.clicarTurnstilePorXdotool(
+                driver,
+                "iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile']",
+                ".cf-turnstile, div[data-sitekey]");
             Object titulo = driver.executeScript("document.title");
             t = titulo == null ? "" : titulo.toString().toLowerCase();
             // O desafio v3 do Cloudflare nao muda o titulo: usa "Verifying you
@@ -297,6 +313,7 @@ class FreelancerBrBrowser {
             options.addArgument("--no-sandbox");
             options.addArgument("--disable-dev-shm-usage");
             options.addArgument("--window-size=1440,900");
+            options.setFingerprintProfile(perfilDoNavegador());
             if (driverResidente == null) {
                 try {
                     driverResidente = new JavaDriverless("FreelancerBr", options, true);
@@ -314,6 +331,49 @@ class FreelancerBrBrowser {
             return null;
         } finally {
             chromeSessaoLock.liberar();
+        }
+    }
+
+    /**
+     * Perfil de identidade HONESTA medido no container (22/09/2026): com o
+     * brLinux() o WebGL spoofado ("NVIDIA GTX 1650") confrontava o renderer
+     * real do container — o Cloudflare classifica como bot e serve um PoW que
+     * a CPU nao completa (medido: 150s+ com a pagina do desafio saturada,
+     * titulo "Um momento..." ate o timeout). Com superficie real (WebGL/
+     * canvas nativos, pt-BR, America/Sao_Paulo) o desafio passa em ~10s e o
+     * cf_clearance nasce (medido: 10 cards em /projetos, cookie presente).
+     *
+     * <p>O fallback para brLinux() existe so para ambientes sem o recurso no
+     * classpath (dev local fora da imagem).</p>
+     */
+    private BrowserFingerprintProfile perfilDoNavegador() {
+        try {
+            return BrowserFingerprintProfile.fromJson(extrairPerfilParaTemp());
+        } catch (Exception e) {
+            log.warn("Freelancer.com.br: perfil honesto indisponivel ({}); usando brLinux.", e.getMessage());
+            return BrowserFingerprintProfile.brLinux();
+        }
+    }
+
+    private static Path extrairPerfilParaTemp() throws Exception {
+        Path destino = perfilExtraido;
+        if (destino != null && Files.exists(destino)) {
+            return destino;
+        }
+        synchronized (FreelancerBrBrowser.class) {
+            if (perfilExtraido != null && Files.exists(perfilExtraido)) {
+                return perfilExtraido;
+            }
+            Path temp = Files.createTempFile("freelancerbr-perfil", ".json");
+            try (InputStream in = FreelancerBrBrowser.class
+                    .getResourceAsStream("/freelancerbr/perfil-navegador.json")) {
+                if (in == null) {
+                    throw new IllegalStateException("recurso freelancerbr/perfil-navegador.json ausente");
+                }
+                Files.copy(in, temp, StandardCopyOption.REPLACE_EXISTING);
+            }
+            perfilExtraido = temp;
+            return temp;
         }
     }
 

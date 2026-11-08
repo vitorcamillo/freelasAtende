@@ -5,6 +5,7 @@ import com.freelasatende.service.interfaceServico.AutenticacaoService;
 import com.freelasatende.service.interfaceServico.TelegramService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.selenium.javaDriverless.JavaDriverless;
+import io.github.selenium.javaDriverless.types.BrowserFingerprintProfile;
 import io.github.selenium.javaDriverless.types.ChromeOptions;
 import io.github.selenium.javaDriverless.types.WebElement;
 import lombok.RequiredArgsConstructor;
@@ -24,18 +25,16 @@ import java.util.concurrent.TimeUnit;
 /**
  * Login no 99Freelas usando JavaDriverless em modo assistido.
  *
- * <p>O fluxo abre um Chrome real, preenche credenciais, aguarda a liberação
- * passiva de eventual verificação humana e depois exporta os cookies para
- * reaproveitamento pelo scraper. O código público não interage com o desafio:
- * se ele não liberar sozinho, um humano conclui na janela do navegador ou a
- * sessão passa a depender de cookies importados manualmente
- * (docs/LOGIN_99FREELAS.md).</p>
+ * <p>O fluxo abre um Chrome real, preenche credenciais, tenta concluir o desafio interativo
+ * pelo próprio navegador e depois exporta os cookies para reaproveitamento pelo scraper.</p>
  *
  * <p>DOM da página de login (confirmado via browser analysis):</p>
  * <ul>
  *   <li>Email: {@code #email} (input type="text")</li>
  *   <li>Senha: {@code #senha} (input type="password")</li>
+ *   <li>Turnstile: {@code iframe[src*="challenges.cloudflare.com"]}</li>
  *   <li>Botão: {@code #btnEfetuarLogin} (button.btn-green)</li>
+ *   <li>Sitekey: {@code 0x4AAAAAAA9Utah2iZE4n8u6}</li>
  * </ul>
  */
 @Slf4j
@@ -50,6 +49,13 @@ public class LoginJavaDriverless {
     private final MfaCodeInbox mfaCodeInbox;
     private final ObjectMapper objectMapper;
     private final ChromeSessaoLock chromeSessaoLock;
+    // Nao e dependencia injetada: inicializado fora do @RequiredArgsConstructor.
+    private final LoginRecusaGuard recusaGuard = new LoginRecusaGuard();
+
+    private static final String SELECTOR_TURNSTILE_IFRAME =
+        "iframe[src*='challenges.cloudflare.com'], iframe[src*='turnstile']";
+    private static final String SELECTOR_TURNSTILE_HOST =
+        ".cf-turnstile, div[data-sitekey]";
 
     @Value("${auth.cookies-arquivo:data/cookies.json}")
     private String arquivoCookies;
@@ -60,6 +66,10 @@ public class LoginJavaDriverless {
      * @return true se login bem-sucedido e cookies exportados
      */
     public boolean executarLogin() {
+        if (recusaGuard.bloqueada(freelasConfig.getEmail(), freelasConfig.getSenha())) {
+            log.warn("Login 99Freelas pausado: senha rejeitada anteriormente; aguardando atualizacao da senha");
+            return false;
+        }
         if (!chromeSessaoLock.adquirir("99Freelas")) {
             return false;
         }
@@ -78,6 +88,11 @@ public class LoginJavaDriverless {
             // de memoria do Chrome fora do que este login precisa.
             options.addArgument("--disable-extensions");
             options.addArgument("--disable-background-networking");
+
+            // Perfil de fingerprint Linux-BR (locale pt-BR, timezone America/Sao_Paulo,
+            // plataforma Linux x86_64 e spoof de WebGL coerente). Mantém o renderer
+            // reportado consistente mesmo quando o backend real é SwiftShader/llvmpipe.
+            options.setFingerprintProfile(BrowserFingerprintProfile.brLinux());
 
             // Profile persistente mantém cookies/sessão entre execuções.
             // Fallback: se travar para conectar (porta/profile em estado ruim), tenta profile temporário.
@@ -103,10 +118,11 @@ public class LoginJavaDriverless {
             // Se já não está mais no login (sessão anterior válida), exportar cookies
             if (!url.contains("login")) {
                 log.info("✅ Sessão anterior ainda válida!");
+                recusaGuard.limpar();
                 return exportarESalvarCookies(driver);
             }
 
-            // 3. Preencher credenciais (preenchimento natural)
+            // 3. Preencher credenciais ANTES do Turnstile (preenchimento natural)
             aguardarElementoCdp(driver, new String[]{
                 "#email",
                 "input[placeholder='Email']",
@@ -125,10 +141,10 @@ public class LoginJavaDriverless {
             preencherCredenciais(driver);
             try { driver.screenshot("login_pos_preenchimento.png"); } catch (Exception ignore) {}
 
-            // 4. Se houver desafio interativo, aguarda a liberação passiva da verificação.
-            boolean liberado = aguardarLiberacaoDoDesafio(driver);
-            if (!liberado) {
-                log.warn("⚠️ Verificação não liberada, tentando submeter mesmo assim...");
+            // 4. Se houver desafio interativo, tenta resolver pelo próprio navegador.
+            boolean resolvido = resolverTurnstile(driver);
+            if (!resolvido) {
+                log.warn("⚠️ Turnstile não resolvido, tentando submeter mesmo assim...");
             }
 
             // 5. Clicar no botão Entrar
@@ -151,10 +167,18 @@ public class LoginJavaDriverless {
 
             if (url != null && !url.contains("login") && !url.contains("mfa/session/confirm")) {
                 log.info("✅ LOGIN BEM-SUCEDIDO!");
+                recusaGuard.limpar();
                 return exportarESalvarCookies(driver);
             }
 
             log.warn("⚠️ Login falhou — URL continua bloqueada: {}", url);
+            String mensagemPagina = LoginDriverlessDomHelper.extrairMensagemErroLogin(driver);
+            if (!mensagemPagina.isBlank()) {
+                log.warn("Mensagem visivel na pagina de login: {}", mensagemPagina);
+                recusaGuard.registrarFalha(freelasConfig.getEmail(), freelasConfig.getSenha(), mensagemPagina, telegramService);
+            } else {
+                log.warn("Nenhuma mensagem de erro visivel na pagina de login (possivel bloqueio de IP ou desafio silencioso)");
+            }
             try {
                 driver.screenshot("login_falhou.png");
             } catch (Exception ignore) {}
@@ -293,43 +317,51 @@ public class LoginJavaDriverless {
     }
 
     /**
-     * Aguarda a liberação passiva de eventual verificação humana exibida pelo 99Freelas.
-     *
-     * <p>O código público não interage com o desafio: apenas observa a URL por até
-     * 90 segundos. O desafio às vezes libera sozinho no Chrome real; caso contrário,
-     * um humano conclui na janela do navegador ou a sessão passa a depender de
-     * cookies importados manualmente (docs/LOGIN_99FREELAS.md).</p>
-     *
-     * @return true se o navegador saiu da tela de login dentro do prazo
+     * Tenta concluir qualquer desafio interativo exibido pelo 99Freelas no próprio navegador.
      */
-    private boolean aguardarLiberacaoDoDesafio(JavaDriverless driver) {
+    private boolean resolverTurnstile(JavaDriverless driver) {
         try {
-            log.info("🔒 Aguardando verificação: sem interação automática com o desafio...");
+            log.info("🔒 Verificando se ha desafio interativo para resolver automaticamente...");
 
-            if (telegramService != null) {
-                telegramService.enviarNotificacao(
-                    "🔐 Login assistido aberto.\n\n"
-                    + "Se houver verificação humana, conclua na janela do navegador "
-                    + "ou importe os cookies conforme docs/LOGIN_99FREELAS.md."
-                );
-            }
+            LoginDriverlessDomHelper.scrollTurnstileParaCentro(driver, SELECTOR_TURNSTILE_IFRAME, SELECTOR_TURNSTILE_HOST);
+            recusaGuard.notificarLoginAssistido(telegramService);
 
             long deadline = System.currentTimeMillis() + 90_000L;
+            long ultimoClique = 0L;
+            boolean screenshotFalhaSalvo = false;
             while (System.currentTimeMillis() < deadline) {
-                String url = LoginDriverlessDomHelper.urlAtualSegura(driver);
+                String url = driver.getCurrentUrl();
+                String token = LoginDriverlessDomHelper.lerRespostaTurnstile(driver);
                 if (url != null && !url.contains("login")) {
                     log.info("   ✅ Navegador saiu da tela de login.");
                     return true;
+                }
+                if (token != null && !token.isBlank()) {
+                    log.info("   ✅ Desafio interativo retornou token.");
+                    return true;
+                }
+
+                long agora = System.currentTimeMillis();
+                if (agora - ultimoClique >= 5_000L) {
+                    boolean clicou = LoginDriverlessDomHelper.clicarTurnstileAutomaticamente(driver, SELECTOR_TURNSTILE_IFRAME, SELECTOR_TURNSTILE_HOST);
+                    ultimoClique = agora;
+                    if (!clicou && !screenshotFalhaSalvo) {
+                        try {
+                            driver.screenshot("turnstile_auto_nao_encontrado.png");
+                            log.warn("   Screenshot salvo: turnstile_auto_nao_encontrado.png");
+                        } catch (Exception ignore) {}
+                        screenshotFalhaSalvo = true;
+                    }
                 }
 
                 TimeUnit.SECONDS.sleep(2);
             }
 
-            log.warn("   ⚠️ Tempo esgotado aguardando a verificação humana.");
+            log.warn("   ⚠️ Tempo esgotado tentando resolver desafio automaticamente.");
             return false;
 
         } catch (Exception e) {
-            log.error("   ❌ Erro ao aguardar verificação: {}", e.getMessage());
+            log.error("   ❌ Erro ao resolver desafio interativo: {}", e.getMessage());
             return false;
         }
     }

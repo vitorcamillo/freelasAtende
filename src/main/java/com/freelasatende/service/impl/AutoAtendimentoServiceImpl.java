@@ -31,9 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -210,9 +208,7 @@ public class AutoAtendimentoServiceImpl implements AutoAtendimentoService {
             return "Projeto " + projetoId + " nao esta ignorado; reprocessamento nao executado.";
         }
 
-        if (realWriteEnabled
-            && operationalSafetyPolicy.allowsAutomaticClientSend(modo, realWriteEnabled, realWriteSimulateEnabled)
-            && !gerenciadorConexoes.temConexoesDisponiveis()) {
+        if (realWriteEnabled && limiteConexoesBloqueiaReprocessamento(projeto)) {
             return "Projeto " + projetoId + " aguardando renovacao do limite diario de conexoes.";
         }
 
@@ -232,6 +228,20 @@ public class AutoAtendimentoServiceImpl implements AutoAtendimentoService {
 
     private Projeto reconstruirProjetoComErroTecnico(Long projetoId) {
         return projetoProcessor().reconstruirProjetoComErroTecnico(projetoId);
+    }
+
+    /**
+     * Circuito remoto por plataforma (ex.: limite semanal do Workana) + limite diario local
+     * apenas para quem consome conexao: o limite de uma plataforma nao adia o reprocessamento
+     * das demais.
+     */
+    private boolean limiteConexoesBloqueiaReprocessamento(Projeto projeto) {
+        PlataformaFreela plataforma = PlataformaProjetoHelper.plataformaOuPadrao(projeto);
+        if (gerenciadorConexoes.limiteRemotoAtivo(plataforma)) {
+            return true;
+        }
+        return marketplaceAdapterRegistry().para(plataforma).capabilities().conexoes()
+            && !gerenciadorConexoes.temConexoesDisponiveis();
     }
 
     private void processarProjetoInterno(Projeto projeto, ModoSistema modo, boolean reavaliacaoExplicita) {
@@ -299,17 +309,6 @@ public class AutoAtendimentoServiceImpl implements AutoAtendimentoService {
             proposta.setMensagem(com.freelasatende.util.AtendimentoTextos.abordagemInicial());
         }
         tratarProposta(projeto, proposta, modo);
-    }
-
-    private void tratarDuvidas(Projeto projeto, List<String> duvidas, ModoSistema modo) throws JsonProcessingException {
-        projetoHandler().tratarDuvidas(projeto, duvidas, modo);
-    }
-
-    /**
-     * Modo ENSINAMENTO: cria ação pendente para tudo, esperando aprovação do usuário.
-     */
-    private void criarAcaoPendenteAprendizado(Projeto projeto, List<String> duvidas, Proposta proposta, ModoSistema modo) {
-        projetoHandler().criarAcaoPendenteAprendizado(projeto, duvidas, proposta, modo);
     }
 
     private void processarConversa(ConversaResumo conversa, ModoSistema modo) throws JsonProcessingException {
@@ -429,10 +428,6 @@ public class AutoAtendimentoServiceImpl implements AutoAtendimentoService {
             .conteudo(conteudo)
             .modoUsado(modo)
             .build());
-    }
-
-    private boolean propostaTemValorReal(Projeto projeto, Proposta proposta) {
-        return AutoAtendimentoProjetoSupport.propostaTemValorReal(projeto, proposta);
     }
 
     private boolean temMargemParaGastarConexao(Projeto projeto) {

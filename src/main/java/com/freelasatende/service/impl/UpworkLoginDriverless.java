@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.freelasatende.config.UpworkConfig;
 import com.freelasatende.service.interfaceServico.TelegramService;
 import io.github.selenium.javaDriverless.JavaDriverless;
+import io.github.selenium.javaDriverless.types.BrowserFingerprintProfile;
 import io.github.selenium.javaDriverless.types.ChromeOptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  * Login assistido do Upwork via Chrome real (JavaDriverless), no mesmo padrao
  * do login do 99Freelas ({@link LoginJavaDriverless}).
  *
- * <p>Abre um Chrome real, preenche credenciais, trata
+ * <p>Abre um Chrome real com fingerprint coerente, preenche credenciais, trata
  * verificacao em duas etapas (OTP) via {@link MarketplaceOtpHandler} e exporta
  * os cookies de sessao (incluindo HttpOnly, que o CDP enxerga) para o arquivo
  * configurado em {@code upwork.cookies-arquivo}. O formato salvo e
@@ -102,6 +103,7 @@ public class UpworkLoginDriverless {
                 options.addArgument("--window-size=1440,900");
                 options.addArgument("--disable-gpu");
             }
+            options.setFingerprintProfile(BrowserFingerprintProfile.brLinux());
 
             try {
                 driver = new JavaDriverless("UpworkLogin", options, true);

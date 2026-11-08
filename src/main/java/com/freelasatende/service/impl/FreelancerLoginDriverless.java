@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.freelasatende.config.FreelancerConfig;
 import com.freelasatende.service.interfaceServico.TelegramService;
 import io.github.selenium.javaDriverless.JavaDriverless;
+import io.github.selenium.javaDriverless.types.BrowserFingerprintProfile;
 import io.github.selenium.javaDriverless.types.ChromeOptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -95,6 +96,7 @@ public class FreelancerLoginDriverless {
                 options.addArgument("--window-size=1440,900");
                 options.addArgument("--disable-gpu");
             }
+            options.setFingerprintProfile(BrowserFingerprintProfile.brLinux());
 
             try {
                 driver = new JavaDriverless("FreelancerLogin", options, true);

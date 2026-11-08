@@ -69,8 +69,8 @@ class ControleControllerSyncTest extends ControleControllerTestSupport {
     }
 
     @Test
-    @DisplayName("Controle sincroniza projeto real em modo ensino e não envia proposta")
-    void controleSincronizaProjetoEmModoEnsinoENaoEnviaProposta() throws Exception {
+    @DisplayName("Controle sincroniza projeto em modo ensino sem conexao: adia abordagem sem pendencia e nao envia")
+    void controleSincronizaProjetoEmModoEnsinoSemConexaoAdiaSemPendencia() throws Exception {
         Projeto projeto = Projeto.builder()
             .id(155L)
             .titulo("Site institucional real")
@@ -88,13 +88,10 @@ class ControleControllerSyncTest extends ControleControllerTestSupport {
         mockMvc.perform(post("/api/controle/sincronizar-projetos"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.sucesso").value(true))
-            .andExpect(jsonPath("$.mensagem").value(org.hamcrest.Matchers.containsString("pendencias novas: 1")))
+            .andExpect(jsonPath("$.mensagem").value(org.hamcrest.Matchers.containsString("pendencias novas: 0")))
             .andExpect(jsonPath("$.mensagem").value(org.hamcrest.Matchers.containsString("Nada foi enviado")));
 
-        assertEquals(1, acaoPendenteRepository.countByStatus(StatusAcaoPendente.PENDENTE));
-        AcaoPendente acao = acaoPendenteRepository.findByStatusOrderByDataCriacaoDesc(StatusAcaoPendente.PENDENTE).get(0);
-        assertEquals(TipoAcaoPendente.ENVIAR_PERGUNTA, acao.getTipo());
-        assertEquals(ModoSistema.ENSINAMENTO, acao.getModoOrigem());
+        assertEquals(0, acaoPendenteRepository.countByStatus(StatusAcaoPendente.PENDENTE));
         verify(scraperService, never()).enviarProposta(any(), any());
         verify(scraperService, never()).enviarPergunta(anyLong(), anyString());
     }
@@ -113,6 +110,7 @@ class ControleControllerSyncTest extends ControleControllerTestSupport {
             .build();
         projetoRepository.save(projeto);
         when(scraperService.buscarDetalhesProjeto(anyLong(), any())).thenReturn(projeto);
+        when(gerenciadorConexoesService.temConexoesDisponiveis()).thenReturn(true);
 
         mockMvc.perform(post("/api/controle/projetos/{id}/reprocessar", projeto.getId()))
             .andExpect(status().isOk())
@@ -124,8 +122,8 @@ class ControleControllerSyncTest extends ControleControllerTestSupport {
             .andExpect(jsonPath("$.sucesso").value(false))
             .andExpect(jsonPath("$.mensagem").value(org.hamcrest.Matchers.containsString("nao esta ignorado")));
 
-        assertEquals(1, acaoPendenteRepository.countByStatus(StatusAcaoPendente.PENDENTE));
+        assertEquals(0, acaoPendenteRepository.countByStatus(StatusAcaoPendente.PENDENTE));
         verify(avaliadorIaService, times(1)).reavaliarProjeto(any());
-        verify(scraperService, never()).enviarPergunta(anyLong(), anyString());
+        verify(scraperService, times(1)).enviarPergunta(anyLong(), anyString());
     }
 }

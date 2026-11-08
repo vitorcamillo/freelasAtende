@@ -22,6 +22,7 @@ data/cookies*.json*
 data/*cookies*.json*
 data/*cookies*.bak*
 data/*login*.bak*
+data/*.bak*
 data/*otp*.txt
 data/mfa_code.txt
 data/*.db

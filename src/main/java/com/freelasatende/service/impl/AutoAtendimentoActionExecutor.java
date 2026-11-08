@@ -225,6 +225,12 @@ final class AutoAtendimentoActionExecutor {
                 throw new IllegalStateException("Falha ao enviar pergunta");
             }
         } catch (RuntimeException e) {
+            // Recusa por limite no lado remoto vale para qualquer plataforma, mesmo sem gate
+            // local de conexao (Workana): nada foi enviado e o circuito remoto DA PLATAFORMA
+            // abre ate o proximo reset diario — sem bloquear as demais.
+            if (limiteRemotoNaCadeia(e)) {
+                gerenciadorConexoes.marcarLimiteRemotoExterno(plataforma);
+            }
             // So devolve a vaga com certeza de que nada saiu. Resposta perdida/ilegivel apos o
             // POST (ex.: 99Freelas devolve false) pode ter enviado e consumido a conexao: a
             // reserva fica, para nao passar do limite diario real.
@@ -326,6 +332,17 @@ final class AutoAtendimentoActionExecutor {
                     || tipo == MarketplaceAdapterErrorType.PLATAFORMA_NAO_SUPORTADA
                     || tipo == MarketplaceAdapterErrorType.OPERACAO_INDISPONIVEL
                     || tipo == MarketplaceAdapterErrorType.LIMITE_CONEXOES;
+            }
+        }
+        return false;
+    }
+
+    /** Cadeia de causas contem recusa por limite de conexoes no lado remoto. */
+    private static boolean limiteRemotoNaCadeia(Throwable erro) {
+        for (Throwable atual = erro; atual != null; atual = atual.getCause() == atual ? null : atual.getCause()) {
+            if (atual instanceof MarketplaceAdapterException marketplace
+                && marketplace.getType() == MarketplaceAdapterErrorType.LIMITE_CONEXOES) {
+                return true;
             }
         }
         return false;

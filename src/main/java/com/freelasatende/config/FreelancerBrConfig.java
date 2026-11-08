@@ -24,6 +24,8 @@ public class FreelancerBrConfig {
     public static final String DEFAULT_DISCOVERY_QUERY =
         "languages[]=pt&sort_field=time_updated&reverse_sort=true&full_description=true&job_details=true";
     public static final String DEFAULT_USER_AGENT = FreelasConfig.DEFAULT_USER_AGENT;
+    /** Transporte com fingerprint de Chrome (curl_cffi); o Cloudflare recusa o HttpClient do Java. */
+    public static final String DEFAULT_HTTP_SCRIPT = "scripts/freelas_http.py";
 
     private String urlBase = DEFAULT_URL_BASE;
     private String apiUrlBase = DEFAULT_API_URL_BASE;
@@ -31,6 +33,7 @@ public class FreelancerBrConfig {
     private String cookiesArquivo = "data/freelancerbr-cookies.json";
     private String discoveryQuery = "";
     private int maxProjetos = 20;
+    private String httpScript = DEFAULT_HTTP_SCRIPT;
     /** Credenciais do proprio .com.br (site Laravel independente do freelancer.com). */
     private String email = "";
     private String senha = "";
@@ -58,6 +61,10 @@ public class FreelancerBrConfig {
 
     public String getCookiesArquivo() {
         return cookiesArquivo == null ? "" : cookiesArquivo;
+    }
+
+    public String getHttpScript() {
+        return httpScript == null || httpScript.isBlank() ? DEFAULT_HTTP_SCRIPT : httpScript;
     }
 
     public String getEmail() {

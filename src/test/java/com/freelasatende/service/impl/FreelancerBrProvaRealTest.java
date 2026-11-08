@@ -23,6 +23,7 @@ class FreelancerBrProvaRealTest {
     void sessaoViveECsrfRenovaPeloTransporteDeProducao() {
         FreelancerBrConfig config = new FreelancerBrConfig();
         config.setCookiesArquivo("data/freelancerbr-cookies.json");
+        config.setHttpScript("scripts/freelas_http.py");
         ObjectMapper mapper = new ObjectMapper();
         FreelancerBrClient client = new FreelancerBrClient(
             config, mapper, new FreelancerBrHttp(config, mapper));

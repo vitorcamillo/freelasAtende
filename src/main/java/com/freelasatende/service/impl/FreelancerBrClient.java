@@ -90,7 +90,7 @@ class FreelancerBrClient {
 
     /**
      * Tenta baixar a listagem publica {@code /projetos} pelo transporte HTTP
-     * padrao com os cookies da sessao renovada.
+     * com fingerprint de Chrome e os cookies da sessao renovada.
      *
      * <p>Retorna {@code null} quando nao ha cookies, quando o Cloudflare devolve
      * o desafio ou quando o corpo nao tem cards de projeto — nesse caso o
@@ -339,8 +339,8 @@ class FreelancerBrClient {
             if (cookies.isEmpty()) {
                 throw sessaoInvalida(descricao + ": cookies ausentes (faca login manual e atualize)");
             }
-            // Sai pelo HttpClient padrao com os cookies importados: se o Cloudflare
-            // recusar, a resposta volta com o desafio e vira sessao invalida.
+            // Sai por curl_cffi com fingerprint de Chrome: o Cloudflare recusa o
+            // handshake TLS do HttpClient do Java mesmo com cookies validos.
             FreelancerBrHttp.Resposta response = http.get(
                 url, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 config.getUrlBase() + "/account/dashboard");

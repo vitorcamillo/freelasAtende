@@ -39,6 +39,7 @@ public class OpenAiCompatibleProvider implements IaProvider {
     private final IaConfig config;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final IaModelCooldown cooldown = new IaModelCooldown();
 
     public OpenAiCompatibleProvider(IaConfig config, ObjectMapper objectMapper) {
         this.config = config;
@@ -73,6 +74,10 @@ public class OpenAiCompatibleProvider implements IaProvider {
     private record Camada(String nome, Set<String> modelos, String baseUrl, String apiKey) {
     }
 
+    /** Par modelo/camada na ordem fixa em que a cadeia e percorrida. */
+    private record Candidato(String modelo, Camada camada) {
+    }
+
     /**
      * Percorre as camadas em ordem: principal (ia.model + ia.fallback-models),
      * secundaria (provedor proprio, ex.: z.ai) e terciaria (ia.tertiary-models,
@@ -80,30 +85,53 @@ public class OpenAiCompatibleProvider implements IaProvider {
      * OpenRouter). Passa para o proximo modelo em todo erro retryable (429
      * rate limit, 5xx como 503 overloaded, saldo/cota esgotados); erro nao
      * retryable aborta na hora.
+     *
+     * Depois de FALHAS_PARA_COOLDOWN falhas retryable consecutivas, o modelo
+     * entra em cooldown de COOLDOWN_MODELO e e pulado (log.debug) nas
+     * chamadas seguintes, sem pagar a latencia de chamar um modelo que ja se
+     * sabe indisponivel. Sucesso limpa o estado do modelo. Se TODOS os
+     * candidatos estao em cooldown, os cooldowns sao ignorados nesta chamada
+     * e a cadeia e tentada em ordem normal: nunca deixar de consultar a
+     * cadeia inteira por causa do cooldown.
      */
     private String tentarCamadas(String prompt, int maxTokens, String modeloAEvitar, String semModelo)
             throws IaProviderException {
-        IaProviderException ultimaFalha = null;
+        List<Candidato> candidatos = new ArrayList<>();
         for (Camada camada : camadas()) {
             for (String modelo : camada.modelos()) {
                 if (modelo.equals(modeloAEvitar)) {
                     continue;
                 }
-                try {
-                    String resposta = enviarComModelo(prompt, maxTokens, modelo, camada.baseUrl(), camada.apiKey());
-                    if (!"principal".equals(camada.nome())) {
-                        log.info("Camadas anteriores de IA esgotadas; resposta obtida via camada {}, modelo {}",
-                            camada.nome(), modelo);
-                    }
-                    return resposta;
-                } catch (IaProviderException e) {
-                    ultimaFalha = e;
-                    if (!e.isRetriable()) {
-                        throw e;
-                    }
-                    log.warn("Modelo {} da camada {} indisponivel (HTTP {}); tentando proximo da cadeia",
-                        modelo, camada.nome(), e.getStatusCode());
+                candidatos.add(new Candidato(modelo, camada));
+            }
+        }
+        boolean ignorarCooldown = !candidatos.isEmpty()
+            && candidatos.stream().allMatch(c -> cooldown.modeloEmCooldown(c.modelo()));
+
+        IaProviderException ultimaFalha = null;
+        for (Candidato candidato : candidatos) {
+            String modelo = candidato.modelo();
+            if (!ignorarCooldown && cooldown.modeloEmCooldown(modelo)) {
+                log.debug("Modelo {} em cooldown; pulando para o proximo da cadeia", modelo);
+                continue;
+            }
+            try {
+                String resposta = enviarComModelo(prompt, maxTokens, modelo,
+                    candidato.camada().baseUrl(), candidato.camada().apiKey());
+                cooldown.registrarSucesso(modelo);
+                if (!"principal".equals(candidato.camada().nome())) {
+                    log.info("Camadas anteriores de IA esgotadas; resposta obtida via camada {}, modelo {}",
+                        candidato.camada().nome(), modelo);
                 }
+                return resposta;
+            } catch (IaProviderException e) {
+                ultimaFalha = e;
+                if (!e.isRetriable()) {
+                    throw e;
+                }
+                cooldown.registrarFalhaRetryable(modelo);
+                log.warn("Modelo {} da camada {} indisponivel (HTTP {}); tentando proximo da cadeia",
+                    modelo, candidato.camada().nome(), e.getStatusCode());
             }
         }
         throw ultimaFalha != null

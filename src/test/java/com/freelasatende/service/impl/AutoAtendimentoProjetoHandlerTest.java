@@ -248,6 +248,7 @@ class AutoAtendimentoProjetoHandlerTest {
             argThat(conteudo -> conteudo.contains("Abordagem inicial automatica nao enviada")),
             eq(ModoSistema.REGULAR)
         );
+        verify(gerenciadorConexoes, never()).marcarLimiteRemotoExterno(any(PlataformaFreela.class));
         verify(acaoPendenteRepository, atLeastOnce()).save(argThat(acao ->
             acao.getStatus() == StatusAcaoPendente.ERRO
                 && acao.getObservacaoUsuario().contains("Nao criar pendencia de aprovacao")
@@ -285,8 +286,35 @@ class AutoAtendimentoProjetoHandlerTest {
                 && acao.getObservacaoUsuario().contains("limite semanal de conexoes do Workana")
                 && acao.getObservacaoUsuario().contains("Nao retentar automaticamente")
         ));
+        // Circuito remoto: a recusa marca o gerenciador local para os proximos projetos.
+        verify(gerenciadorConexoes).marcarLimiteRemotoExterno(PlataformaFreela.WORKANA);
         verify(projetoRepository).save(projeto);
         assertEquals(StatusProjeto.EM_ANALISE, projeto.getStatus());
+    }
+
+    @Test
+    void circuitoRemotoDoWorkanaAdiaAbordagemDeleSemBloquearOutraPlataforma() throws Exception {
+        // Circuito remoto aberto so para o Workana (limite semanal recusado no lado remoto).
+        when(gerenciadorConexoes.limiteRemotoAtivo(PlataformaFreela.WORKANA)).thenReturn(true);
+        when(acaoPendenteRepository.save(any(AcaoPendente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AutoAtendimentoProjetoHandler handlerWorkana = handler(PlataformaFreela.WORKANA, true, false);
+        Projeto projetoWorkana = projeto(PlataformaFreela.WORKANA, 201L, "Workana sem conexao");
+        handlerWorkana.criarAbordagemInicialProjeto(projetoWorkana, ModoSistema.REGULAR);
+
+        // Workana: adiamento sem POST (sem novo ciclo pre-check + POST + WARN).
+        verify(hooks, never()).executarAcao(any(AcaoPendente.class));
+        verify(acaoPendenteRepository).save(argThat(acao ->
+            acao.getStatus() == StatusAcaoPendente.ERRO
+                && AutoAtendimentoProjetoAbordagemInicial.OBSERVACAO_LIMITE_LOCAL.equals(acao.getObservacaoUsuario())
+        ));
+
+        AutoAtendimentoProjetoHandler handler99 = handler(PlataformaFreela.FREELAS_99, true, false);
+        Projeto projeto99 = projeto(PlataformaFreela.FREELAS_99, 202L, "99Freelas segue livre");
+        handler99.criarAbordagemInicialProjeto(projeto99, ModoSistema.REGULAR);
+
+        // O limite do Workana nao bloqueia a abordagem de outra plataforma.
+        verify(hooks).executarAcao(any(AcaoPendente.class));
     }
 
     @ParameterizedTest
@@ -397,10 +425,53 @@ class AutoAtendimentoProjetoHandlerTest {
         verify(projetoRepository).save(projeto);
     }
 
+    @Test
+    void circuitoRemotoDoWorkanaEmEnsinamentoAdiaAbordagemSemPendencia() throws Exception {
+        // Regra: a abordagem inicial nunca vira pendencia para o operador, nem em ENSINAMENTO.
+        when(gerenciadorConexoes.limiteRemotoAtivo(PlataformaFreela.WORKANA)).thenReturn(true);
+        when(acaoPendenteRepository.save(any(AcaoPendente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        Projeto projeto = projeto(PlataformaFreela.WORKANA, 203L, "Workana ensinamento sem conexao");
+
+        handler(PlataformaFreela.WORKANA, true, false).criarAbordagemInicialProjeto(projeto, ModoSistema.ENSINAMENTO);
+
+        verify(hooks, never()).executarAcao(any(AcaoPendente.class));
+        verify(hooks, never()).criarOuRecuperarAcaoProjeto(any(), any(), any(), any(), any(), any());
+        verify(hooks, never()).notificarAcaoPendente(any());
+        verify(acaoPendenteRepository).save(argThat(acao ->
+            acao.getStatus() == StatusAcaoPendente.ERRO
+                && AutoAtendimentoProjetoAbordagemInicial.OBSERVACAO_LIMITE_LOCAL.equals(acao.getObservacaoUsuario())
+        ));
+    }
+
+    @Test
+    void limiteLocalEsgotadoNoFreelas99EmEnsinamentoAdiaAbordagemSemPendencia() throws Exception {
+        // Limite diario local esgotado com plataforma que consome conexao: adiamento silencioso.
+        when(gerenciadorConexoes.temConexoesDisponiveis()).thenReturn(false);
+        when(acaoPendenteRepository.save(any(AcaoPendente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        Projeto projeto = projeto(PlataformaFreela.FREELAS_99, 204L, "99Freelas ensinamento sem conexao");
+
+        handler(PlataformaFreela.FREELAS_99, true, false, true)
+            .criarAbordagemInicialProjeto(projeto, ModoSistema.ENSINAMENTO);
+
+        verify(hooks, never()).executarAcao(any(AcaoPendente.class));
+        verify(hooks, never()).criarOuRecuperarAcaoProjeto(any(), any(), any(), any(), any(), any());
+        verify(hooks, never()).notificarAcaoPendente(any());
+        verify(acaoPendenteRepository).save(argThat(acao ->
+            acao.getStatus() == StatusAcaoPendente.ERRO
+                && AutoAtendimentoProjetoAbordagemInicial.OBSERVACAO_LIMITE_LOCAL.equals(acao.getObservacaoUsuario())
+        ));
+    }
+
     private AutoAtendimentoProjetoHandler handler(PlataformaFreela plataforma, boolean realWriteEnabled, boolean simulateEnabled) {
+        return handler(plataforma, realWriteEnabled, simulateEnabled, false);
+    }
+
+    private AutoAtendimentoProjetoHandler handler(PlataformaFreela plataforma, boolean realWriteEnabled,
+        boolean simulateEnabled, boolean consomeConexoes) {
         MarketplaceAdapter adapter = mock(MarketplaceAdapter.class);
         when(adapter.plataforma()).thenReturn(plataforma);
-        when(adapter.capabilities()).thenReturn(new MarketplaceCapabilities(true, false, true, false, false, false, false));
+        when(adapter.capabilities()).thenReturn(
+            new MarketplaceCapabilities(true, false, true, false, false, consomeConexoes, false));
 
         return new AutoAtendimentoProjetoHandler(
             objectMapper,
