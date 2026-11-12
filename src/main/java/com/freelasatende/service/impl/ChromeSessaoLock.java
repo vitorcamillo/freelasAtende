@@ -51,6 +51,11 @@ class ChromeSessaoLock {
         }
     }
 
+    /** Tenta adquirir sem bloquear nem logar; {@code false} se outra sessao Chrome esta em uso. */
+    boolean tentarAdquirir() {
+        return permissao.tryAcquire();
+    }
+
     void liberar() {
         permissao.release();
     }

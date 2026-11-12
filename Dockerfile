@@ -82,4 +82,7 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 # A JVM agora roda em segundo plano e o shell, como PID 1, colhe os filhos
 # entre uma volta e outra do wait. O trap repassa o TERM para encerramento
 # limpo, senao o container so morreria no timeout do Docker.
-CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & export DISPLAY=:99; java -Xms192m -Xmx640m -XX:MaxMetaspaceSize=160m -jar /app/app.jar & APP_PID=$!; trap 'kill -TERM $APP_PID 2>/dev/null' TERM INT; while kill -0 $APP_PID 2>/dev/null; do wait $APP_PID; CODIGO=$?; done; exit ${CODIGO:-0}"]
+# [2026-11-12] Flags da JVM vem de $JAVA_OPTS (sobrescrevivel no Coolify sem
+# rebuild). Padrao -Xms128m -Xmx512m: medido por jstat em producao, old gen
+# vivo ~146MB e metaspace ~102MB; 512m deixa ~3x de folga. Vazio = padrao.
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp >/tmp/xvfb.log 2>&1 & export DISPLAY=:99; java ${JAVA_OPTS:--Xms128m -Xmx512m -XX:MaxMetaspaceSize=160m} -jar /app/app.jar & APP_PID=$!; trap 'kill -TERM $APP_PID 2>/dev/null' TERM INT; while kill -0 $APP_PID 2>/dev/null; do wait $APP_PID; CODIGO=$?; done; exit ${CODIGO:-0}"]
