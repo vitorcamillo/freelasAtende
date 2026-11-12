@@ -16,7 +16,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
@@ -24,6 +23,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Chrome real para as duas operacoes do Freelancer.com.br que exigem navegador.
@@ -65,17 +65,47 @@ class FreelancerBrBrowser {
      *
      * <p>Pool LIMITADO a 2 threads; a concorrencia de Chrome segue serializada pelo {@link ChromeSessaoLock}.</p>
      */
-    private static final ExecutorService NAVEGADOR_EXECUTOR = new ThreadPoolExecutor(
-        0, 2, 60L, TimeUnit.SECONDS, new SynchronousQueue<>(),
-        runnable -> {
-            Thread t = new Thread(runnable, "freelancerbr-browser");
-            t.setDaemon(true);
-            return t;
-        },
-        new ThreadPoolExecutor.AbortPolicy());
+    /** Rejeicoes seguidas ate recriar o executor (threads presas em CDP sem timeout). */
+    static final int LIMITE_REJEICOES_RECRIAR = 3;
+
+    private final AtomicInteger rejeicoesSeguidas = new AtomicInteger();
+
+    volatile ThreadPoolExecutor navegadorExecutor = criarNavegadorExecutor();
+
+    private static ThreadPoolExecutor criarNavegadorExecutor() {
+        return new ThreadPoolExecutor(
+            0, 2, 60L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+            runnable -> {
+                Thread t = new Thread(runnable, "freelancerbr-browser");
+                t.setDaemon(true);
+                return t;
+            },
+            new ThreadPoolExecutor.AbortPolicy());
+    }
+
+    static boolean deveRecriarAposRejeicoes(int rejeicoes) {
+        return rejeicoes >= LIMITE_REJEICOES_RECRIAR;
+    }
+
+    /** Recria o executor e interrompe o antigo; threads presas em CDP nativo sao daemon. */
+    private synchronized ThreadPoolExecutor recriarNavegadorExecutor() {
+        ThreadPoolExecutor antigo = navegadorExecutor;
+        navegadorExecutor = criarNavegadorExecutor();
+        rejeicoesSeguidas.set(0);
+        if (antigo != null) {
+            antigo.shutdownNow();
+        }
+        log.error("Freelancer.com.br: executor do navegador recriado apos {} rejeicoes seguidas "
+            + "(threads presas em chamada CDP sem timeout); discovery/envio retomam sem reiniciar o container.",
+            LIMITE_REJEICOES_RECRIAR);
+        return navegadorExecutor;
+    }
 
     /** Teto absoluto para qualquer operacao de navegador, do lancamento ao quit. */
     private static final long TIMEOUT_OPERACAO_SEGUNDOS = 150;
+
+    /** Timeout efetivo da operacao; pacote para teste simular travamento sem esperar 150s. */
+    long timeoutOperacaoSegundos = TIMEOUT_OPERACAO_SEGUNDOS;
 
     /**
      * Chrome RESIDENTE: nasce uma vez e fica vivo entre os ciclos (modelo
@@ -84,10 +114,31 @@ class FreelancerBrBrowser {
      * fechava em 0 projetos. Com o navegador residente, a sessao (cookies,
      * clearance, historico) persiste entre os ciclos.
      */
-    private volatile JavaDriverless driverResidente;
+    volatile JavaDriverless driverResidente;
+
+    /** Driver cuja construcao terminou mas ainda nao virou residente. */
+    private volatile JavaDriverless driverEmConstrucao;
+
+    /** Timeout durante a construcao: quem criar o driver deve mata-lo em vez de promove-lo. */
+    private volatile boolean construcaoAbortada;
 
     /** Ultimo instante em que uma operacao terminou com o lock do Chrome em maos. */
-    private volatile long ultimoUsoMillis;
+    volatile long ultimoUsoMillis;
+
+    /** Fabrica do driver; pacote para teste injetar driver falso. */
+    FabricaDriver fabricaDriver = FreelancerBrBrowser::criarDriverPadrao;
+
+    interface FabricaDriver {
+        JavaDriverless criar(ChromeOptions options) throws Exception;
+    }
+
+    private static JavaDriverless criarDriverPadrao(ChromeOptions options) throws Exception {
+        try {
+            return new JavaDriverless("FreelancerBr", options, true);
+        } catch (Exception e) {
+            return new JavaDriverless("FreelancerBrTmp-" + System.currentTimeMillis(), options, false);
+        }
+    }
 
     /** Minutos de ociosidade ate fechar o Chrome residente; {@code <= 0} desativa. */
     @org.springframework.beans.factory.annotation.Value("${freelancerbr.chrome-ocioso-minutos:10}")
@@ -97,7 +148,7 @@ class FreelancerBrBrowser {
     private static volatile Path perfilExtraido;
 
     /** Desanexa o driver residente; com {@code esperado != null}, so se ainda for o mesmo. */
-    private synchronized JavaDriverless desanexarDriver(JavaDriverless esperado) {
+    synchronized JavaDriverless desanexarDriver(JavaDriverless esperado) {
         if (driverResidente == null || (esperado != null && driverResidente != esperado)) {
             return null;
         }
@@ -155,13 +206,20 @@ class FreelancerBrBrowser {
 
     /** Mata o Chrome residente SEM quit (CDP travado); a thread presa libera o lock. */
     private void matarDriverResidente(String motivo) {
+        construcaoAbortada = true;
         JavaDriverless driver = desanexarDriver(null);
-        if (driver == null) {
+        JavaDriverless emConstrucao = driverEmConstrucao;
+        if (driver == null && emConstrucao == null) {
             return;
         }
-        long pid = pidDo(driver);
-        matarArvore(pid);
-        log.warn("Freelancer.com.br: Chrome encerrado a forca ({}); pid={} (CDP travado, sem quit).", motivo, pid);
+        if (driver != null) {
+            long pid = pidDo(driver);
+            matarArvore(pid);
+            log.warn("Freelancer.com.br: Chrome encerrado a forca ({}); pid={} (CDP travado, sem quit).", motivo, pid);
+        }
+        if (emConstrucao != null && emConstrucao != driver) {
+            matarArvore(pidDo(emConstrucao));
+        }
     }
 
     @jakarta.annotation.PreDestroy
@@ -387,25 +445,30 @@ class FreelancerBrBrowser {
             t, c.length() > 180 ? c.substring(0, 180) : c);
     }
 
-    private <T> T comNavegador(AcaoNavegador<T> acao) {
+    <T> T comNavegador(AcaoNavegador<T> acao) {
         // Roda em thread daemon separada: se o Chrome travar, a thread do
         // @Scheduled e liberada pelo timeout do Future.
         Future<T> futuro;
         try {
-            futuro = NAVEGADOR_EXECUTOR.submit(() -> executarComDriver(acao));
+            futuro = navegadorExecutor.submit(() -> executarComDriver(acao));
+            rejeicoesSeguidas.set(0);
         } catch (RejectedExecutionException e) {
+            int rejeicoes = rejeicoesSeguidas.incrementAndGet();
             log.warn("Freelancer.com.br: navegador ocupado (pool no limite); adiando para a proxima rodada.");
+            if (deveRecriarAposRejeicoes(rejeicoes)) {
+                recriarNavegadorExecutor();
+            }
             return null;
         }
         try {
-            return futuro.get(TIMEOUT_OPERACAO_SEGUNDOS, TimeUnit.SECONDS);
+            return futuro.get(timeoutOperacaoSegundos, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             futuro.cancel(true);
             // CDP travado: quit() travaria, entao mata o processo; a thread presa
             // sai por excecao e libera o ChromeSessaoLock.
             matarDriverResidente("timeout");
             log.warn("Freelancer.com.br: operacao excedeu {}s; Chrome encerrado a forca "
-                + "(scheduler segue livre para as demais plataformas).", TIMEOUT_OPERACAO_SEGUNDOS);
+                + "(scheduler segue livre para as demais plataformas).", timeoutOperacaoSegundos);
             return null;
         } catch (Exception e) {
             log.warn("Freelancer.com.br: falha na operacao com navegador: {}", e.getMessage());
@@ -425,12 +488,19 @@ class FreelancerBrBrowser {
             options.addArgument("--window-size=1440,900");
             options.setFingerprintProfile(perfilDoNavegador());
             if (driver == null) {
-                try {
-                    driver = new JavaDriverless("FreelancerBr", options, true);
-                } catch (Exception e) {
-                    driver = new JavaDriverless("FreelancerBrTmp-" + System.currentTimeMillis(), options, false);
+                construcaoAbortada = false;
+                JavaDriverless novo = fabricaDriver.criar(options);
+                driverEmConstrucao = novo;
+                if (construcaoAbortada || Thread.currentThread().isInterrupted()) {
+                    driverEmConstrucao = null;
+                    construcaoAbortada = false;
+                    matarArvore(pidDo(novo));
+                    log.warn("Freelancer.com.br: Chrome criado apos timeout descartado (orfao evitado).");
+                    return null;
                 }
+                driver = novo;
                 driverResidente = driver;
+                driverEmConstrucao = null;
                 log.info("Freelancer.com.br: Chrome residente nascido (fecha apos ociosidade).");
             }
             return acao.executar(driver);
@@ -493,7 +563,7 @@ class FreelancerBrBrowser {
     }
 
     @FunctionalInterface
-    private interface AcaoNavegador<T> {
+    interface AcaoNavegador<T> {
         T executar(JavaDriverless driver) throws Exception;
     }
 }
