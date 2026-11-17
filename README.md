@@ -1,5 +1,9 @@
 # FreelasAtende
 
+![MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green) ![Java](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3-6DB33F?logo=springboot&logoColor=white) ![Telegram](https://img.shields.io/badge/Telegram-aprova%C3%A7%C3%A3o-26A5E4?logo=telegram&logoColor=white)
+
+**In English:** watches freelance marketplaces (99Freelas, Workana, Upwork, Freelancer), scores each project with AI and drafts proposals, but nothing reaches a client until you approve it on Telegram or the web panel.
+
 ![FreelasAtende](assets/portfolio/freelas-atende-cover.png)
 
 Esta é a edição pública do FreelasAtende. Para obter o código, use `git clone https://github.com/vitorcamillo/freelasAtende.git`. Consulte [LICENSE](LICENSE) e [CONTRIBUTING.md](CONTRIBUTING.md). No Freelancer.com.br, a descoberta consulta a listagem pública e pode aguardar passivamente a verificação do Cloudflare no Chrome residente; a inbox requer cookies importados manualmente. O projeto não contorna desafios de verificação.
